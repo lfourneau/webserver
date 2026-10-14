@@ -11,8 +11,12 @@ Steps in the creation of a webserver
 
 int main(void)
 {
-    SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "54000");
+    SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "5400");
 
+    while (1)
+    {
+        ;
+    }
     return (0);
 }
 

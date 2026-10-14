@@ -1,7 +1,7 @@
 # include "SetUpSocket.hpp"
 
 SetUpSocket::SetUpSocket(int domain, int type, int protocol, std::string port) : domain(domain), \
-type(type), protocol(protocol), port(port)
+type(type), protocol(protocol), port(port), return_getaddr_info(NULL)
 {
     std::memset(&this->parameter, 0, sizeof(this->parameter));
     parameter.ai_family = domain;
@@ -13,6 +13,8 @@ type(type), protocol(protocol), port(port)
         get_addr();
         socket_creation();
         bind_socket();
+        listen_socket();
+        monitor_connections();
     }
     catch(const std::exception& e)
     {
@@ -34,7 +36,8 @@ SetUpSocket &SetUpSocket::operator=(SetUpSocket const &other)
 
 SetUpSocket::~SetUpSocket()
 {
-    ;
+    if (this->return_getaddr_info != NULL)
+        freeaddrinfo(this->return_getaddr_info);
 }
 
 void    SetUpSocket::socket_creation()
@@ -54,8 +57,64 @@ void    SetUpSocket::get_addr()
 
 void    SetUpSocket::bind_socket()
 {
-    if (bind(fd_socket, return_getaddr_info->ai_addr, sizeof(*return_getaddr_info->ai_addr)))
+    if (bind(fd_socket, return_getaddr_info->ai_addr, return_getaddr_info->ai_addrlen))
     {
         throw(BindingFail());
+    }
+}
+
+void    SetUpSocket::listen_socket()
+{
+    //somaxconn defines the maximum concurrent connections the server
+    //can receive
+    if (listen(fd_socket, SOMAXCONN))
+        throw(ListeningFailed());
+}
+
+void    SetUpSocket::monitor_connections()
+{
+    fd_set keep, read;
+    int     return_select; 
+    int     fd_received;
+    char    buffer[4096];
+
+    FD_ZERO(&keep);
+    FD_SET(fd_socket, &keep);
+
+    while (1)
+    {
+        read = keep;
+        if (return_select = (FD_SETSIZE, read, NULL, NULL, NULL))
+        { 
+            if (return_select < 0)
+            {
+                throw(SelectFailed());
+            }
+            else
+            {
+                for (int i = 0; i < FD_SETSIZE; i++)
+                {
+                    if (!FD_ISSET(i, &read))
+                        continue;
+                    if (i == fd_socket)
+                    {
+                        fd_received = accept(fd_socket, NULL, NULL);
+                        FD_SET(fd_received, &keep);
+                    }
+                    else
+                    {
+                        if (recv(i, buffer, sizeof(buffer), 0) == 0)
+                        {
+                            close(i);
+                            FD_CLR(i, &keep); 
+                        }
+                        else
+                        {
+                            std::cout << buffer << std::endl;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

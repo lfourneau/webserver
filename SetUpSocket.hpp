@@ -12,6 +12,7 @@
 # include <exception>
 # include <sstream>
 # include <cstring>
+# include <unistd.h>
 
 class SetUpSocket
 {
@@ -41,7 +42,21 @@ class SetUpSocket
                 return "binding has failed";
             }
         };
-        private:
+        class ListeningFailed : public std::exception
+        {
+            virtual const char *what() const throw()
+            {
+                return "listening has failed";
+            }
+        };       
+        class SelectFailed : public std::exception
+        {
+            virtual const char *what() const throw()
+            {
+                return "select has failed";
+            }
+        };           
+    private:
         int fd_socket;
         const int domain;
         const int type;
@@ -52,6 +67,8 @@ class SetUpSocket
         void    socket_creation();
         void    get_addr();
         void    bind_socket();
+        void    listen_socket();
+        void    monitor_connections();
 };
 
 #endif
