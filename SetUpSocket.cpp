@@ -1,4 +1,5 @@
 # include "SetUpSocket.hpp"
+# include "HTTP.hpp"
 
 SetUpSocket::SetUpSocket(int domain, int type, int protocol, std::string port) : domain(domain), \
 type(type), protocol(protocol), port(port), return_getaddr_info(NULL)
@@ -77,6 +78,7 @@ void    SetUpSocket::monitor_connections()
     int     return_select; 
     int     fd_received;
     char    buffer[4096];
+    std::vector<HTTP>   list_files;
 
     FD_ZERO(&keep);
     FD_SET(fd_socket, &keep);
@@ -86,7 +88,6 @@ void    SetUpSocket::monitor_connections()
         read = keep;
         if (return_select = select(FD_SETSIZE, &read, NULL, NULL, NULL))
         { 
-            std::cout << "The loop has arrived here" << std::endl;
             if (return_select < 0)
             {
                 throw(SelectFailed());
@@ -101,19 +102,24 @@ void    SetUpSocket::monitor_connections()
                     {
                         fd_received = accept(fd_socket, NULL, NULL);
                         FD_SET(fd_received, &keep);
-                        std::cout << "a conncection was received" << std::endl;
+
+                        HTTP    new_connection(fd_received);
+                        list_files.push_back(new_connection);
                     }
                     else
                     {
                         std::memset(buffer, 0, 4096);
                         if (recv(i, buffer, sizeof(buffer), 0) == 0)
                         {
+                            HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
+                            structure.print_content();
                             close(i);
                             FD_CLR(i, &keep); 
                         }
                         else
                         {
-                            std::cout << buffer << std::endl;
+                            HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
+                            structure.append_content(buffer);
                         }
                     }
                 }
@@ -121,3 +127,4 @@ void    SetUpSocket::monitor_connections()
         }
     }
 }
+

@@ -13,6 +13,8 @@
 # include <sstream>
 # include <cstring>
 # include <unistd.h>
+# include <vector>
+# include "HTTP.hpp"
 
 class SetUpSocket
 {
@@ -70,5 +72,7 @@ class SetUpSocket
         void    listen_socket();
         void    monitor_connections();
 };
+
+# include "find_structure.tpp"
 
 #endif
