@@ -84,8 +84,9 @@ void    SetUpSocket::monitor_connections()
     while (1)
     {
         read = keep;
-        if (return_select = (FD_SETSIZE, read, NULL, NULL, NULL))
+        if (return_select = select(FD_SETSIZE, &read, NULL, NULL, NULL))
         { 
+            std::cout << "The loop has arrived here" << std::endl;
             if (return_select < 0)
             {
                 throw(SelectFailed());
@@ -100,9 +101,11 @@ void    SetUpSocket::monitor_connections()
                     {
                         fd_received = accept(fd_socket, NULL, NULL);
                         FD_SET(fd_received, &keep);
+                        std::cout << "a conncection was received" << std::endl;
                     }
                     else
                     {
+                        std::memset(buffer, 0, 4096);
                         if (recv(i, buffer, sizeof(buffer), 0) == 0)
                         {
                             close(i);
