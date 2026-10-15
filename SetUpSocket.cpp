@@ -13,6 +13,7 @@ type(type), protocol(protocol), port(port), return_getaddr_info(NULL)
     {
         get_addr();
         socket_creation();
+        set_sock_non_crash();
         bind_socket();
         listen_socket();
         monitor_connections();
@@ -78,7 +79,7 @@ void    SetUpSocket::monitor_connections()
     int     return_select; 
     int     fd_received;
     char    buffer[4096];
-    std::vector<HTTP>   list_files;
+    std::vector<HTTP>   list_files = {};
 
     FD_ZERO(&keep);
     FD_SET(fd_socket, &keep);
@@ -100,6 +101,7 @@ void    SetUpSocket::monitor_connections()
                         continue;
                     if (i == fd_socket)
                     {
+                        std::cout << "new connection received" << std::endl;
                         fd_received = accept(fd_socket, NULL, NULL);
                         FD_SET(fd_received, &keep);
 
@@ -109,7 +111,9 @@ void    SetUpSocket::monitor_connections()
                     else
                     {
                         std::memset(buffer, 0, 4096);
-                        if (recv(i, buffer, sizeof(buffer), 0) == 0)
+                        unsigned int total_read;
+                        total_read = recv(i, buffer, sizeof(buffer) - 1, 0);
+                        if (total_read == 0)
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
                             structure.print_content();
@@ -119,7 +123,7 @@ void    SetUpSocket::monitor_connections()
                         else
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
-                            structure.append_content(buffer);
+                            structure.append_content(buffer, total_read + 1);
                         }
                     }
                 }
@@ -128,3 +132,13 @@ void    SetUpSocket::monitor_connections()
     }
 }
 
+void    SetUpSocket::set_sock_non_crash()
+{
+    int option = true;
+
+    if (setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
+    {
+        close(fd_socket);
+        throw(SockOptFail());
+    }
+}

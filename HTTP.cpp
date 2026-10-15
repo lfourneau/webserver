@@ -43,9 +43,9 @@ void    HTTP::parse_input()
     std::getline(content, protocol_version, '\r');
 } 
 
-void HTTP::append_content(std::string append_content)
+void HTTP::append_content(char *append_info, unsigned int total_read)
 {
-    request_content += append_content;
+    request_content.append(append_info, total_read);
 }
 
 int HTTP::get_client_fd()

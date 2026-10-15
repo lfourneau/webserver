@@ -58,7 +58,14 @@ class SetUpSocket
                 return "select has failed";
             }
         };           
-    private:
+        class SockOptFail : public std::exception
+        {
+            virtual const char *what() const throw()
+            {
+                return "sockoption has failed";
+            }
+        };  
+        private:
         int fd_socket;
         const int domain;
         const int type;
@@ -71,6 +78,7 @@ class SetUpSocket
         void    bind_socket();
         void    listen_socket();
         void    monitor_connections();
+        void    set_sock_non_crash();
 };
 
 # include "find_structure.tpp"

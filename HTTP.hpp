@@ -13,10 +13,10 @@ class HTTP
     HTTP(const HTTP &other);
     HTTP &operator=(const HTTP &other);
     ~HTTP();
-    void    append_content(std::string content);
+    void    append_content(char *content, unsigned int total_read);
     void    parse_input();
     int     get_client_fd();
-    void print_content();
+    void    print_content();
     private:
     int     associated_fd;
     std::string request_content;
