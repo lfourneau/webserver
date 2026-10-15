@@ -111,8 +111,10 @@ void    SetUpSocket::monitor_connections()
                     else
                     {
                         std::memset(buffer, 0, 4096);
-                        unsigned int total_read;
+                        int total_read;
                         total_read = recv(i, buffer, sizeof(buffer) - 1, 0);
+                        if (total_read == -1)
+                            throw(RecvException());
                         if (total_read == 0)
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
@@ -123,7 +125,7 @@ void    SetUpSocket::monitor_connections()
                         else
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
-                            structure.append_content(buffer, total_read + 1);
+                            structure.append_content(buffer, total_read);
                         }
                     }
                 }

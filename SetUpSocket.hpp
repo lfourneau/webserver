@@ -65,6 +65,13 @@ class SetUpSocket
                 return "sockoption has failed";
             }
         };  
+        class RecvException : public std::exception
+        {
+            virtual const char *what() const throw()
+            {
+                return "recv() has failed";
+            }
+        };  
         private:
         int fd_socket;
         const int domain;

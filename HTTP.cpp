@@ -6,11 +6,21 @@ HTTP::HTTP(int fd) : associated_fd(fd)
 
 HTTP::HTTP(const HTTP &other)
 {
-
+    this->associated_fd = other.associated_fd;
+    this->request_method = other.request_method;
+    this->URI = other.URI;
+    this->protocol_version = other.protocol_version;
 }
 
 HTTP    &HTTP::operator=(const HTTP &other)
 {
+    if (this != &other)
+    {
+        this->associated_fd = other.associated_fd;
+        this->request_method = other.request_method;
+        this->URI = other.URI;
+        this->protocol_version = other.protocol_version;
+    }
     return (*this);
 }
 
@@ -43,7 +53,7 @@ void    HTTP::parse_input()
     std::getline(content, protocol_version, '\r');
 } 
 
-void HTTP::append_content(char *append_info, unsigned int total_read)
+void HTTP::append_content(const char *append_info, unsigned int total_read)
 {
     request_content.append(append_info, total_read);
 }
@@ -56,4 +66,9 @@ int HTTP::get_client_fd()
 void HTTP::print_content()
 {
     std::cout << this->request_content;
+}
+
+void HTTP::send_to_client()
+{
+    
 }
