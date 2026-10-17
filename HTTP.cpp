@@ -37,20 +37,11 @@ void HTTP::analyse_buffer()
 
 void    HTTP::parse_input()
 {
-    std::string line_one;
-    std::stringstream content;
+    parse_initial_response_line();
+    //parser le reste du header peut etre stocker le tout dans des paires;
 
-    //isolate the first line of the header
-    content << request_content;
-    std::getline(content, line_one, '\n');
+    
 
-    //isolate the request method, URI, protocol_version
-    content.str("");
-    content.clear();
-    content << line_one;
-    std::getline(content, request_method, ' ');
-    std::getline(content, URI, ' ');
-    std::getline(content, protocol_version, '\r');
 } 
 
 void HTTP::append_content(const char *append_info, unsigned int total_read)
@@ -71,4 +62,31 @@ void HTTP::print_content()
 void HTTP::send_to_client()
 {
     
+}
+
+
+void HTTP::parse_initial_response_line()
+{
+    std::stringstream flux;
+
+    flux << request_content;
+
+    std::getline(flux, request_content, '\n');
+    //cette synthaxe permet de lire la ligne en ignorant les moments ou il peut y avoir
+    //des characeteres d'espace redondants
+    flux >> request_method >> URI >> protocol_version;
+
+    //on utilise une version plus acceptante de http donc il faut faire en sorte que le \r ne soit
+    //pas accepte
+    request_method = HelperFunctions::trim(request_method, " \n\r");
+    URI = HelperFunctions::trim(URI, " \n\r");
+    protocol_version = HelperFunctions::trim(protocol_version, " \n\r");
+    
+    //verifier que les informations transmises soient interpretables par le serveur
+}
+
+void HTTP::parse_header_lines()
+{
+    std::s
+    while ()
 }

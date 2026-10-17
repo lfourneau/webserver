@@ -5,6 +5,8 @@
 # include <sstream>
 # include <unistd.h>
 # include <string>
+# include <map>
+# include "HelperFunctions.hpp"
 
 class HTTP
 {
@@ -15,6 +17,8 @@ class HTTP
     ~HTTP();
     void    append_content(const char *content, unsigned int total_read);
     void    parse_input();
+    void    parse_initial_response_line();
+    void    parse_header_lines();
     int     get_client_fd();
     void    print_content();
     private:
@@ -24,6 +28,8 @@ class HTTP
     std::string URI;
     std::string protocol_version;
     void    analyse_buffer();
+    std::map<std::string, std::string> header_lines;
+
 };
 
 #endif
