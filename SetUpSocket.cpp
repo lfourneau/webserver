@@ -33,6 +33,7 @@ type(other.type), protocol(other.protocol), port(other.port)
 
 SetUpSocket &SetUpSocket::operator=(SetUpSocket const &other)
 {
+    (void)other;
     return (*this);
 }
 
@@ -87,7 +88,8 @@ void    SetUpSocket::monitor_connections()
     while (1)
     {
         read = keep;
-        if (return_select = select(FD_SETSIZE, &read, NULL, NULL, NULL))
+        return_select = select(FD_SETSIZE, &read, NULL, NULL, NULL);
+        if (return_select)
         { 
             if (return_select < 0)
             {
@@ -118,14 +120,17 @@ void    SetUpSocket::monitor_connections()
                         if (total_read == 0)
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
-                            structure.print_content();
-                            close(i);
+
+                            structure.analyse_buffer();
                             FD_CLR(i, &keep); 
                         }
                         else
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
-                            structure.append_content(buffer, total_read);
+                            if (structure.append_content(buffer, total_read))
+                            {
+                                FD_CLR(i, &keep); 
+                            }
                         }
                     }
                 }

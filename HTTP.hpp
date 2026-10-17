@@ -5,8 +5,16 @@
 # include <sstream>
 # include <unistd.h>
 # include <string>
-# include <map>
+# include <vector>
 # include "HelperFunctions.hpp"
+# include <exception>
+# include <utility>
+# include <sys/stat.h>
+# include <fcntl.h>
+# include <string.h>
+# include <sys/socket.h>
+
+# define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver/html_files/"
 
 class HTTP
 {
@@ -15,21 +23,37 @@ class HTTP
     HTTP(const HTTP &other);
     HTTP &operator=(const HTTP &other);
     ~HTTP();
-    void    append_content(const char *content, unsigned int total_read);
-    void    parse_input();
-    void    parse_initial_response_line();
-    void    parse_header_lines();
+    void    analyse_buffer();
     int     get_client_fd();
-    void    print_content();
+    int    append_content(const char *content, unsigned int total_read);
+    class   ErrorInHeader : public std::exception
+    {
+        virtual const char *what() const throw()
+        {
+            return "Error in header sent";
+        }
+    };
+    class   FileNotExist : public std::exception
+    {
+        virtual const char *what() const throw()
+        {
+            return "the requested file does not exist";
+        }
+    };
     private:
     int     associated_fd;
     std::string request_content;
     std::string request_method;
     std::string URI;
     std::string protocol_version;
-    void    analyse_buffer();
-    std::map<std::string, std::string> header_lines;
-
+    void    parse_input();
+    void    parse_initial_response_line();
+    void    parse_header_lines();
+    void    print_content();
+    void    send_to_client();
+    void    send_response();
+    void    GETResponse(std::string const &other, size_t size_file);
+    std::vector<std::pair<std::string, std::string> > header_lines;
 };
 
 #endif

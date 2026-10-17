@@ -6,10 +6,12 @@ HelperFunctions::HelperFunctions()
 
 HelperFunctions::HelperFunctions(HelperFunctions const &other)
 {
+    (void)other;
 }
 
 HelperFunctions &HelperFunctions::operator=(HelperFunctions const &other)
 {
+    (void)other;
     return (*this);
 }
 
@@ -28,7 +30,7 @@ std::string &HelperFunctions::trim_left(std::string &line, const char *char_to_t
         line.clear();
         return (line);
     }
-    line.substr(location, line.size() - 1);
+    line = line.substr(location);
     return (line);
 }
 
@@ -41,12 +43,12 @@ std::string &HelperFunctions::trim_right(std::string &line, const char *char_to_
     {
         return line;
     }
-    if (location == 0)
+    if (location == std::string::npos)
     {
         line.clear();
         return (line);
     }
-    line.substr(0, location);
+    line = line.substr(0, location + 1);
     return (line);
 }
 

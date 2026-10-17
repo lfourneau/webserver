@@ -11,7 +11,6 @@ Steps in the creation of a webserver
 6) While receiving the message echo its content
 7) Close  the socket*/
 
-
 int main(void)
 {
     SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "5400");
@@ -26,13 +25,10 @@ int main(void)
 /*
 int main(void)
 {
-    std::string file = "POST /users HTTP/1.1\r\nHost: example.com\r\n\
-                        Content-Type: application/x-www-form-urlencoded\r\n\
-                        Content-Length: 49\r\n\
-                        name=FirstName+LastName&email=bsmth%40example.com";
+    std::string file = "GET / HTTP/1.1\r\nHost: example.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 49\r\n\r\nname=FirstName+LastName&email=bsmth%40example.com\r\n";
 
     HTTP    content(1);
-    content.append_content(file);
+    content.append_content(file.c_str(), file.length() + 1);
     content.parse_input(); 
 }
 */
