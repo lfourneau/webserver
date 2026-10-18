@@ -52,7 +52,9 @@ class HTTP
     void    print_content();
     void    send_to_client();
     void    send_response();
-    void    GETResponse(std::string const &other, size_t size_file);
+    void    GETResponse(std::string const &other, size_t size_file, std::string &filename);
+    std::string const   content_length(size_t &value) const;
+    std::string const   determine_extension(std::string const &other) const;
     std::vector<std::pair<std::string, std::string> > header_lines;
 };
 

@@ -171,12 +171,58 @@ void    HTTP::send_response()
             file_content << buffer;
             bzero(buffer, 4096);
         }
-        GETResponse(file_content.str(), file_size);
+        GETResponse(file_content.str(), file_size, content);
     }
 }
 
-void    HTTP::GETResponse(std::string const &content_file, size_t size_file)
+void    HTTP::GETResponse(std::string const &content_file, size_t size_file, std::string &filename)
 {
-    send(this->associated_fd, "HTTP/1.0 200 OK\r\n\r\n", 19, 0);
+    std::string file_type;
+    std::string return_carriage = "\r\n";
+    
+    send(this->associated_fd, "HTTP/1.0 200 OK\r\n", 17, 0);
+    std::cout << "HTTP/1.0 200 OK\r\n";
+
+    file_type = HTTP::determine_extension(filename);
+    send(this->associated_fd, file_type.c_str(), file_type.size(), 0);
+
+    std::cout << file_type;
+    std::string cont = content_length(size_file);
+    send(this->associated_fd, cont.c_str(), cont.size(), 0);
+    std::cout << content_length(size_file);
+    send(this->associated_fd, return_carriage.c_str(), return_carriage.size(), 0);
+    std::cout << "\r\n";
+
     send(this->associated_fd, content_file.c_str(), size_file, 0);
+    std::cout << content_file << std::endl;
+}
+
+std::string const  HTTP::determine_extension(std::string const &other) const
+{
+    size_t last_slash;
+    size_t exstension;
+    std::string file_exstensions[] = {"html", "htm", "css", "js", "txt", "json", "png", "jpg", "jpeg", "gif", "svg", "ico", "pdf"};
+    std::string file_type[] = {"text/html", "text/html", "text/css", "text/javascript", "text/plain", "application/json", \
+    "image/png", "image/jpeg", "image/jpeg", "image/gif", "image/svg+xml", "image/x-ico", "application/pdf" };
+
+    last_slash = other.rfind('/');
+    exstension = other.rfind('.');
+    if (exstension == std::string::npos && last_slash != std::string::npos)
+        return ("Content-Type: application/octet-stream\r\n");
+    for (int i = 0; i < sizeof(file_exstensions) / sizeof(file_exstensions[0]); i++)
+    {
+        if (other.compare(exstension + 1, std::string::npos, file_exstensions[i]))
+            return ("Content-Type: " + file_type[i] + "\r\n");
+    }
+    return ("Content-Type: error\r\n");
+    //ici il faut gerer une erreure
+    
+}
+
+std::string const   HTTP::content_length(size_t &value) const
+{
+    std::ostringstream content;
+    
+    content << "Content-Length: " << value << "\r\n";
+    return (content.str());
 }
