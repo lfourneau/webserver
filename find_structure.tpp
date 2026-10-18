@@ -25,6 +25,7 @@ template <typename T, typename V> void delete_vector(std::vector<T> &vec, \
         if (((*it).*member)() == value)
         {
             vec.erase(it);
+            return ;
         }
     }
 };

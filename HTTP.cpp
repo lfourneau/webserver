@@ -1,6 +1,6 @@
 #include "HTTP.hpp"
 
-HTTP::HTTP(int fd) : associated_fd(fd)
+HTTP::HTTP(int fd) : associated_fd(fd), pwd(PATH_FILES_DIRECTORY), code(200)
 {
 }
 
@@ -12,6 +12,8 @@ HTTP::HTTP(const HTTP &other)
     this->protocol_version = other.protocol_version;
     this->request_content = other.request_content;
     this->header_lines = other.header_lines;
+    this->pwd = other.pwd;
+    this->code = other.code;
 }
 
 HTTP    &HTTP::operator=(const HTTP &other)
@@ -24,6 +26,8 @@ HTTP    &HTTP::operator=(const HTTP &other)
         this->protocol_version = other.protocol_version;
         this->request_content = other.request_content;
         this->header_lines = other.header_lines;
+        this->pwd = other.pwd;
+        this->code = other.code;
     }
     return (*this);
 }
@@ -35,8 +39,15 @@ HTTP::~HTTP()
 
 void HTTP::analyse_buffer()
 {
-    parse_input();
-    send_response();
+    try
+    {
+        parse_input();
+        send_response();
+    }
+    catch(const std::exception& e)
+    {
+        send_response(e.what());
+    }
     close(associated_fd);
 }
 
@@ -139,47 +150,71 @@ void HTTP::parse_header_lines()
 
 void    HTTP::send_response()
 {
-    std::string content = PATH_FILES_DIRECTORY;
+    std::string file = pwd;
     int file_desc;
-    char    buffer[4096];
-    int  current_buffer;
-    std::string file;
 
     if (this->request_method == "GET")
     {
         if (URI == "/")
             URI = "/index.html"; 
-        content += URI;
-        file_desc = open(content.c_str(), O_RDONLY);
+        file += URI;
+        file_desc = open(file.c_str(), O_RDONLY);
         if (file_desc == -1)
         {
-            throw(FileNotExist());
+            code = 404; 
+            throw(FileNotFound());
         }
-        bzero(buffer, 4096);
-        while (true)
-        {
-            current_buffer = read(file_desc, buffer, 4096);
-            if (current_buffer == 0)
-            {
-                close (file_desc);
-                break;
-            }
-            file.append(buffer, current_buffer);
-            bzero(buffer, 4096);
-        }
-        GETResponse(file, file.size(), content);
+    }
+    pwd = file;
+    read_and_store_file(file_desc);
+}
+
+void    HTTP::send_response(const char *error) 
+{
+    std::string str_error = error;
+    int fd;
+    
+    this->pwd.append("/error_page.html");
+    if (str_error == "404 Not Found")
+    {
+        fd = open(this->pwd.c_str(), O_RDONLY);
+        //ici peut etre verifier que ca ne renvoie pas -1
+        read_and_store_file(fd);
     }
 }
 
-void    HTTP::GETResponse(std::string const &content_file, size_t size_file, std::string &filename)
+void    HTTP::read_and_store_file(int fd)
+{
+    char    buffer[4096];
+    std::string file;
+    int  current_buffer;
+
+    bzero(buffer, 4096);
+    while (true)
+    {
+        current_buffer = read(fd, buffer, 4096);
+        if (current_buffer == 0)
+        {
+            close (fd);
+            break;
+        }
+        file.append(buffer, current_buffer);
+        bzero(buffer, 4096);
+    }
+    GETResponse(file, file.size());
+}
+
+void    HTTP::GETResponse(std::string const &content_file, size_t size_file)
 {
     std::string file_type;
     std::string return_carriage = "\r\n";
-    
-    send(this->associated_fd, "HTTP/1.0 200 OK\r\n", 17, 0);
-    std::cout << "HTTP/1.0 200 OK\r\n";
 
-    file_type = HTTP::determine_extension(filename);
+    std::string first_line;
+    
+    first_line = output_first_line();
+    send(this->associated_fd, first_line.c_str(), first_line.size(), 0);
+
+    file_type = HTTP::determine_extension(pwd);
     send(this->associated_fd, file_type.c_str(), file_type.size(), 0);
 
     std::cout << file_type;
@@ -223,4 +258,21 @@ std::string const   HTTP::content_length(size_t &value) const
     
     content << "Content-Length: " << value << "\r\n";
     return (content.str());
+}
+
+std::string const HTTP::output_first_line()
+{
+    int supported_codes[] = {200, 404};
+    std::string associated_messages[] = {"OK", "Not Found"};
+    std::ostringstream exit_string;
+
+    exit_string << "HTTP/1.0 "  << code << " ";
+
+    for (unsigned long i = 0; i < sizeof(supported_codes) / sizeof(supported_codes[0]); i++)
+    {
+        if (code == supported_codes[i])
+            exit_string << associated_messages[i];
+    }
+    exit_string << "\r\n";
+    return (exit_string.str());
 }
