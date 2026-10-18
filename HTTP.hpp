@@ -14,7 +14,7 @@
 # include <string.h>
 # include <sys/socket.h>
 
-# define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver/html_files/"
+# define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver/html_files"
 
 class HTTP
 {

@@ -140,17 +140,15 @@ void HTTP::parse_header_lines()
 void    HTTP::send_response()
 {
     std::string content = PATH_FILES_DIRECTORY;
-    std::stringstream file_content;
     int file_desc;
     char    buffer[4096];
-    size_t  file_size = 0;
-    size_t  current_buffer;
+    int  current_buffer;
     std::string file;
 
     if (this->request_method == "GET")
     {
         if (URI == "/")
-            URI = "index.html"; 
+            URI = "/index.html"; 
         content += URI;
         file_desc = open(content.c_str(), O_RDONLY);
         if (file_desc == -1)
@@ -161,17 +159,15 @@ void    HTTP::send_response()
         while (true)
         {
             current_buffer = read(file_desc, buffer, 4096);
-            if (!current_buffer)
+            if (current_buffer == 0)
             {
                 close (file_desc);
-                file = file_content.str();
                 break;
             }
-            file_size += current_buffer;
-            file_content << buffer;
+            file.append(buffer, current_buffer);
             bzero(buffer, 4096);
         }
-        GETResponse(file_content.str(), file_size, content);
+        GETResponse(file, file.size(), content);
     }
 }
 
@@ -187,9 +183,11 @@ void    HTTP::GETResponse(std::string const &content_file, size_t size_file, std
     send(this->associated_fd, file_type.c_str(), file_type.size(), 0);
 
     std::cout << file_type;
+
     std::string cont = content_length(size_file);
     send(this->associated_fd, cont.c_str(), cont.size(), 0);
-    std::cout << content_length(size_file);
+    std::cout << cont;
+
     send(this->associated_fd, return_carriage.c_str(), return_carriage.size(), 0);
     std::cout << "\r\n";
 
@@ -209,9 +207,9 @@ std::string const  HTTP::determine_extension(std::string const &other) const
     exstension = other.rfind('.');
     if (exstension == std::string::npos && last_slash != std::string::npos)
         return ("Content-Type: application/octet-stream\r\n");
-    for (int i = 0; i < sizeof(file_exstensions) / sizeof(file_exstensions[0]); i++)
+    for (int i = 0; static_cast<unsigned long>(i) < sizeof(file_exstensions) / sizeof(file_exstensions[0]); i++)
     {
-        if (other.compare(exstension + 1, std::string::npos, file_exstensions[i]))
+        if (other.compare(exstension + 1, std::string::npos, file_exstensions[i]) == 0)
             return ("Content-Type: " + file_type[i] + "\r\n");
     }
     return ("Content-Type: error\r\n");

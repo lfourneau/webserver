@@ -122,6 +122,7 @@ void    SetUpSocket::monitor_connections()
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
 
                             structure.analyse_buffer();
+                            delete_vector(list_files, &HTTP::get_client_fd, i);
                             FD_CLR(i, &keep); 
                         }
                         else
@@ -129,6 +130,7 @@ void    SetUpSocket::monitor_connections()
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
                             if (structure.append_content(buffer, total_read))
                             {
+                                delete_vector(list_files, &HTTP::get_client_fd, i);
                                 FD_CLR(i, &keep); 
                             }
                         }
