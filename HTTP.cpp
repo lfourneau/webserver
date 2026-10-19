@@ -55,6 +55,7 @@ void    HTTP::parse_input()
 {
     parse_initial_response_line();
     parse_header_lines();
+    GETResponse(content);
 } 
 
 int HTTP::append_content(const char *append_info, unsigned int total_read)
@@ -122,6 +123,11 @@ void HTTP::send_to_client()
 std::vector<std::pair <std::string, std::string> > const &HTTP::get_env() const
 {
     return (this->header_lines);
+}
+
+std::string const HTTP::get_content() const
+{
+    return (this->content);
 }
 
 void HTTP::parse_initial_response_line()
@@ -231,7 +237,6 @@ void    HTTP::send_response(const char *error)
 void    HTTP::read_and_store_file(int fd)
 {
     char    buffer[4096];
-    std::string file;
     int  current_buffer;
 
     bzero(buffer, 4096);
@@ -243,19 +248,31 @@ void    HTTP::read_and_store_file(int fd)
             close (fd);
             break;
         }
-        file.append(buffer, current_buffer);
+        content.append(buffer, current_buffer);
         bzero(buffer, 4096);
     }
-    GETResponse(file);
 }
 
 void    HTTP::GETResponse(std::string const &content_file)
 {
     std::stringstream output_message;
     std::string content;
-    
+    (void) content_file;
+
+    if (determine_extension(pwd) == "cgi")
+    {
+        CGI     send_to_cgi(*this);
+
+        content = send_to_cgi.get_output();
+        output_message << output_first_line() << "Content-Type: text/html" \
+        << content_length(content.size()) << "\r\n" << content;
+        content = output_message.str();
+        send(this->associated_fd, content.c_str(), content.size(), 0);
+
+        return;
+    }
     output_message << output_first_line() << determine_extension(pwd) \
-    << content_length(content_file.size()) << "\r\n" << content_file;
+    << content_length(content.size()) << "\r\n" << content;
     content = output_message.str();
     send(this->associated_fd, content.c_str(), content.size(), 0);
 
@@ -279,7 +296,7 @@ std::string const  HTTP::determine_extension(std::string const &other) const
         if (other.compare(exstension + 1, std::string::npos, file_exstensions[i]) == 0)
             return ("Content-Type: " + file_type[i] + "\r\n");
     }
-    return ("Content-Type: error\r\n");
+    return ("cgi");
     //ici il faut gerer une erreure
     
 }

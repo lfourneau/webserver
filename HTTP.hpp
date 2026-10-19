@@ -15,6 +15,7 @@
 # include <sys/socket.h>
 # include <stdio.h>
 # include <stdlib.h>
+# include "CGI.hpp"
 
 # define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver/html_files"
 
@@ -34,6 +35,7 @@ class HTTP
     std::string const &get_protocol() const;
     std::string get_value_host() const;
     std::string const get_fd() const;
+    std::string const get_content() const;
     class   ErrorInHeader : public std::exception
     {
         virtual const char *what() const throw()
@@ -55,6 +57,7 @@ class HTTP
     std::string URI;
     std::string protocol_version;
     std::string pwd;
+    std::string content;
     int code;
     void    parse_input();
     void    parse_initial_response_line();
