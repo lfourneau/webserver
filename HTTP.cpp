@@ -78,12 +78,51 @@ void HTTP::print_content()
     std::cout << this->request_content;
 }
 
+std::string const &HTTP::get_method() const
+{
+    return (this->request_method);
+}
+
+std::string const &HTTP::get_pwd() const
+{
+    return (this->pwd);
+}
+
+std::string const &HTTP::get_protocol() const
+{
+    return (this->protocol_version);
+}
+
+std::string HTTP::get_value_host() const
+{
+    std::vector<std::pair <std::string, std::string> >::const_iterator it;
+
+    for (it = header_lines.begin(); it != header_lines.end(); it++)
+    {
+        if (it->first == "Host")
+            return (it->second);
+    }
+    return ("Error");
+}
+
+std::string const   HTTP::get_fd() const
+{
+    std::stringstream str_int;
+
+    str_int << this->associated_fd;
+    return (str_int.str());
+}
+
 void HTTP::send_to_client()
 {
     if (request_method == "GET")
         std::cout << "Get method found" << std::endl;
 }
 
+std::vector<std::pair <std::string, std::string> > const &HTTP::get_env() const
+{
+    return (this->header_lines);
+}
 
 void HTTP::parse_initial_response_line()
 {
@@ -104,6 +143,8 @@ void HTTP::parse_initial_response_line()
     request_method = HelperFunctions::trim(request_method, " \n\r");
     URI = HelperFunctions::trim(URI, " \n\r");
     protocol_version = HelperFunctions::trim(protocol_version, " \n\r");
+    std::cout << std::endl;
+    std::cout << request_method << " " << URI << protocol_version;
     
     //verifier que les informations transmises soient interpretables par le serveur
 }
@@ -111,7 +152,6 @@ void HTTP::parse_initial_response_line()
 void HTTP::parse_header_lines()
 {
     std::stringstream all_lines;
-    std::stringstream line_flux;
     std::string current_line;
     std::string key;
     std::string value;
@@ -121,13 +161,16 @@ void HTTP::parse_header_lines()
     std::getline(all_lines, current_line, '\n');
     while (true)
     {
+        std::stringstream line_flux;
         std::pair<std::string, std::string> new_pair;
         std::getline(all_lines, current_line, '\n');
         //attention un header peut techniquement commencer par un espace dans quel cas
         // ce n'est pas du contenu supplementaire mais qqch ratache a la requete d'avant;
         if (current_line.empty() == false && (current_line[0] == ' ' || current_line[0] == '\t'))
         {
-            std::cerr << "This file does not support header lines on multiple lines";
+            //ici il faut faire une fonction qui append bien le reste de la ligne sur la structure
+            //precedente
+            std::cout << "This file does not support header lines on multiple lines";
             continue;
         }
         if (current_line.empty() == true || current_line == "\r" || current_line == "")
@@ -136,8 +179,9 @@ void HTTP::parse_header_lines()
         line_flux << current_line;
         //attention cela ne marche que dans le cadre de paires
         //si c'est une liste il faut separer avec le ":"
-        line_flux >> key >> value;
         //ici il faudrait peut etre verifier la presence de ce charactere :
+        getline(line_flux, key, ':');
+        getline(line_flux, value);
         key = HelperFunctions::trim_right(key, ":");
         value = HelperFunctions::trim(value, "\r ");
         if (value.empty() == true || key.empty() == true)
@@ -145,6 +189,7 @@ void HTTP::parse_header_lines()
         new_pair.first = key;
         new_pair.second = value; 
         this->header_lines.push_back(new_pair);
+        std::cout << new_pair.first << " | " << new_pair.second << std::endl;
     }
 }
 
@@ -201,33 +246,20 @@ void    HTTP::read_and_store_file(int fd)
         file.append(buffer, current_buffer);
         bzero(buffer, 4096);
     }
-    GETResponse(file, file.size());
+    GETResponse(file);
 }
 
-void    HTTP::GETResponse(std::string const &content_file, size_t size_file)
+void    HTTP::GETResponse(std::string const &content_file)
 {
-    std::string file_type;
-    std::string return_carriage = "\r\n";
-
-    std::string first_line;
+    std::stringstream output_message;
+    std::string content;
     
-    first_line = output_first_line();
-    send(this->associated_fd, first_line.c_str(), first_line.size(), 0);
+    output_message << output_first_line() << determine_extension(pwd) \
+    << content_length(content_file.size()) << "\r\n" << content_file;
+    content = output_message.str();
+    send(this->associated_fd, content.c_str(), content.size(), 0);
 
-    file_type = HTTP::determine_extension(pwd);
-    send(this->associated_fd, file_type.c_str(), file_type.size(), 0);
-
-    std::cout << file_type;
-
-    std::string cont = content_length(size_file);
-    send(this->associated_fd, cont.c_str(), cont.size(), 0);
-    std::cout << cont;
-
-    send(this->associated_fd, return_carriage.c_str(), return_carriage.size(), 0);
-    std::cout << "\r\n";
-
-    send(this->associated_fd, content_file.c_str(), size_file, 0);
-    std::cout << content_file << std::endl;
+    return;
 }
 
 std::string const  HTTP::determine_extension(std::string const &other) const
@@ -252,7 +284,7 @@ std::string const  HTTP::determine_extension(std::string const &other) const
     
 }
 
-std::string const   HTTP::content_length(size_t &value) const
+std::string const   HTTP::content_length(size_t value) const
 {
     std::ostringstream content;
     

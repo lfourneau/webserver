@@ -28,6 +28,12 @@ class HTTP
     void    analyse_buffer();
     int     get_client_fd();
     int    append_content(const char *content, unsigned int total_read);
+    std::vector<std::pair <std::string, std::string> > const &get_env() const;
+    std::string const &get_pwd() const;
+    std::string const &get_method() const;
+    std::string const &get_protocol() const;
+    std::string get_value_host() const;
+    std::string const get_fd() const;
     class   ErrorInHeader : public std::exception
     {
         virtual const char *what() const throw()
@@ -58,9 +64,9 @@ class HTTP
     void    send_response();
     void    send_response(const char *error);
     void    read_and_store_file(int fd);
-    void    GETResponse(std::string const &other, size_t size_file);
+    void    GETResponse(std::string const &other);
     std::string const   output_first_line();
-    std::string const   content_length(size_t &value) const;
+    std::string const   content_length(size_t value) const;
     std::string const   determine_extension(std::string const &other) const;
     std::vector<std::pair<std::string, std::string> > header_lines;
 };
