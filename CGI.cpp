@@ -99,17 +99,13 @@ void    CGI::script_name(std::vector<std::string> &vec)
 void    CGI::extract_host_port(std::vector<std::string> &vec)
 {
     std::stringstream content;
-
-    std::string port;
     std::string hostname;
 
     content << host;
     getline(content, hostname, ':');
-    getline(content, port);
-    port = HelperFunctions::trim(hostname, " \r\n");
-    hostname = HelperFunctions::trim(port, " \r\n");
+    hostname = HelperFunctions::trim(hostname, " \r\n");
     vec.push_back(TransformToString() << "SERVER_NAME=" << hostname);
-    vec.push_back(TransformToString() << "SERVER_PORT=" << port);
+    vec.push_back(TransformToString() << "SERVER_PORT=" << host_port);
 }
 
 void    CGI::sup_post(std::vector<std::string> &vec)
@@ -130,7 +126,9 @@ std::string const CGI::find_type() const
 
 std::string CGI::get_output()
 {
-    return (this->output_cgi);
+    parse_input();
+    fork_program();
+    return (output_cgi);
 }
 
 void    CGI::transform_to_c_str(std::vector<std::string> const &vec)
