@@ -27,8 +27,7 @@ class HTTP
     ~HTTP();
     void    analyse_buffer();
     int    append_content(const char *content, unsigned int total_read);
-    std::vector<std::pair <std::string, std::string> > const &get_env() const;
-    std::string get_value_host() const;
+    void get_value_host();
     int     get_client_fd();
     class   ErrorInHeader : public std::exception
     {
@@ -52,22 +51,28 @@ class HTTP
     std::string protocol_version;
     std::string pwd;
     std::string content;
-
+    std::string host_port;
+    std::string file_type;
+    std::string query_string;
+    std::string content_type;
+    bool    cgi_request;
     int code;
+    
     void    parse_initial_response_line(std::stringstream &flux);
     void    parse_header_lines(std::stringstream &flux);
     void    print_content();
-    void    send_to_client();
-    void    send_response();
-    void    send_response(const char *error);
+    void    read_file();
+    void    read_error_file(const char *error);
     void    read_and_store_file(int fd);
     void    GETResponse(std::string const &other);
+    void    add_to_previous_pair(std::string &content);
+    void    check_cgi_request();
     std::string const   output_first_line();
-    std::string const   content_length(size_t value) const;
-    std::string const   determine_extension(std::string const &other) const;
+    void    determine_extension();
     std::vector<std::pair<std::string, std::string> > header_lines;
 };
 
 # include "find_structure.tpp"
+# include "concatenate.tpp"
 
 #endif

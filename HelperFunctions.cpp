@@ -58,3 +58,16 @@ std::string &HelperFunctions::trim(std::string &line, const char *char_to_trim)
     trim_left(line, char_to_trim);
     return(line);
 }
+
+bool    HelperFunctions::isblank(std::string &line)
+{
+    std::string::iterator it;
+
+    for (it = line.begin(); it != line.end(); it++)
+    {
+        if ((*it >= 9 && *it <= 13) || (*it == 32)) 
+            continue;
+        return (false);
+    }
+    return (true);
+}
