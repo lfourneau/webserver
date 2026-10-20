@@ -1,4 +1,7 @@
 #include "HTTP.hpp"
+#include "CGI.hpp"
+
+//Les constructeurs
 
 HTTP::HTTP(int fd) : associated_fd(fd), pwd(PATH_FILES_DIRECTORY), code(200)
 {
@@ -37,26 +40,13 @@ HTTP::~HTTP()
 
 }
 
-void HTTP::analyse_buffer()
-{
-    try
-    {
-        parse_input();
-        send_response();
-    }
-    catch(const std::exception& e)
-    {
-        send_response(e.what());
-    }
-    close(associated_fd);
-}
-
-void    HTTP::parse_input()
-{
-    parse_initial_response_line();
-    parse_header_lines();
-    GETResponse(content);
-} 
+//
+//Fonctionnement de la classe
+//recuperer le contenu envoyer par chunk par le serveur
+//parser premiere linge
+//sauvegarder sous forme de paire le registe
+//ouvrir le fichier associer
+//l'envoyer
 
 int HTTP::append_content(const char *append_info, unsigned int total_read)
 {
@@ -69,93 +59,46 @@ int HTTP::append_content(const char *append_info, unsigned int total_read)
     return (0);
 }
 
-int HTTP::get_client_fd()
-{
-    return (this->associated_fd);
-}
-
-void HTTP::print_content()
-{
-    std::cout << this->request_content;
-}
-
-std::string const &HTTP::get_method() const
-{
-    return (this->request_method);
-}
-
-std::string const &HTTP::get_pwd() const
-{
-    return (this->pwd);
-}
-
-std::string const &HTTP::get_protocol() const
-{
-    return (this->protocol_version);
-}
-
-std::string HTTP::get_value_host() const
-{
-    std::vector<std::pair <std::string, std::string> >::const_iterator it;
-
-    for (it = header_lines.begin(); it != header_lines.end(); it++)
-    {
-        if (it->first == "Host")
-            return (it->second);
-    }
-    return ("Error");
-}
-
-std::string const   HTTP::get_fd() const
-{
-    std::stringstream str_int;
-
-    str_int << this->associated_fd;
-    return (str_int.str());
-}
-
-void HTTP::send_to_client()
-{
-    if (request_method == "GET")
-        std::cout << "Get method found" << std::endl;
-}
-
-std::vector<std::pair <std::string, std::string> > const &HTTP::get_env() const
-{
-    return (this->header_lines);
-}
-
-std::string const HTTP::get_content() const
-{
-    return (this->content);
-}
-
-void HTTP::parse_initial_response_line()
+void HTTP::analyse_buffer()
 {
     std::stringstream flux;
-    std::string first_line;
 
     flux << this->request_content;
-    std::getline(flux, first_line, '\n');
-    flux.str("");
-    flux.clear();
-    flux << first_line;
-    //cette synthaxe permet de lire la ligne en ignorant les moments ou il peut y avoir
-    //des characeteres d'espace redondants
-    flux >> request_method >> URI >> protocol_version;
-
-    //on utilise une version plus acceptante de http donc il faut faire en sorte que le \r ne soit
-    //pas accepte
-    request_method = HelperFunctions::trim(request_method, " \n\r");
-    URI = HelperFunctions::trim(URI, " \n\r");
-    protocol_version = HelperFunctions::trim(protocol_version, " \n\r");
-    std::cout << std::endl;
-    std::cout << request_method << " " << URI << protocol_version;
-    
-    //verifier que les informations transmises soient interpretables par le serveur
+    try
+    {
+        parse_initial_response_line(flux);
+        parse_header_lines();
+        GETResponse(content);
+        send_response();
+    }
+    catch(const std::exception& e)
+    {
+        send_response(e.what());
+    }
+    close(associated_fd);
 }
 
-void HTTP::parse_header_lines()
+void HTTP::parse_initial_response_line(std::stringstream &flux)
+{
+    std::string first_line;
+
+    if (!getline(flux, first_line))
+    {
+        std::cout << "The has been an error getting the line";
+    }
+    
+    std::istringstream input(first_line);
+    std::string extra_values;
+
+    // la synthaxe renvoie vrai si on a pu lire et faux dans le cas contraire
+    if (!(input >> request_method >> URI >> protocol_version) || (input >> extra_values))
+    {
+        std::cout << "The header is not valid" << std::endl;
+    }
+}
+
+
+void HTTP::parse_header_lines(std::stringstream &flux)
 {
     std::stringstream all_lines;
     std::string current_line;
@@ -198,6 +141,43 @@ void HTTP::parse_header_lines()
         std::cout << new_pair.first << " | " << new_pair.second << std::endl;
     }
 }
+
+int  HTTP::get_client_fd()
+{
+    return (this->associated_fd);
+}
+
+void HTTP::print_content()
+{
+    std::cout << this->request_content;
+}
+
+std::string HTTP::get_value_host() const
+{
+    std::vector<std::pair <std::string, std::string> >::const_iterator it;
+
+    for (it = header_lines.begin(); it != header_lines.end(); it++)
+    {
+        if (it->first == "Host")
+            return (it->second);
+    }
+    return ("Error");
+}
+
+void HTTP::send_to_client()
+{
+    if (request_method == "GET")
+        std::cout << "Get method found" << std::endl;
+}
+
+std::vector<std::pair <std::string, std::string> > const &HTTP::get_env() const
+{
+    return (this->header_lines);
+}
+
+
+
+
 
 void    HTTP::send_response()
 {
@@ -256,25 +236,29 @@ void    HTTP::read_and_store_file(int fd)
 void    HTTP::GETResponse(std::string const &content_file)
 {
     std::stringstream output_message;
-    std::string content;
+    std::string yoyo;
     (void) content_file;
 
+    send_response();
     if (determine_extension(pwd) == "cgi")
     {
         CGI     send_to_cgi(*this);
 
+        std::cout << "CGI instance created" << std::endl;
+
         content = send_to_cgi.get_output();
         output_message << output_first_line() << "Content-Type: text/html" \
         << content_length(content.size()) << "\r\n" << content;
-        content = output_message.str();
+        yoyo = output_message.str();
         send(this->associated_fd, content.c_str(), content.size(), 0);
 
         return;
     }
     output_message << output_first_line() << determine_extension(pwd) \
     << content_length(content.size()) << "\r\n" << content;
-    content = output_message.str();
-    send(this->associated_fd, content.c_str(), content.size(), 0);
+    yoyo = output_message.str();
+    std::cout << "\n\n" << content << std::endl;
+    send(this->associated_fd, yoyo.c_str(), yoyo.size(), 0);
 
     return;
 }

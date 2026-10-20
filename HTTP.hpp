@@ -15,7 +15,6 @@
 # include <sys/socket.h>
 # include <stdio.h>
 # include <stdlib.h>
-# include "CGI.hpp"
 
 # define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver/html_files"
 
@@ -27,15 +26,10 @@ class HTTP
     HTTP &operator=(const HTTP &other);
     ~HTTP();
     void    analyse_buffer();
-    int     get_client_fd();
     int    append_content(const char *content, unsigned int total_read);
     std::vector<std::pair <std::string, std::string> > const &get_env() const;
-    std::string const &get_pwd() const;
-    std::string const &get_method() const;
-    std::string const &get_protocol() const;
     std::string get_value_host() const;
-    std::string const get_fd() const;
-    std::string const get_content() const;
+    int     get_client_fd();
     class   ErrorInHeader : public std::exception
     {
         virtual const char *what() const throw()
@@ -50,7 +44,7 @@ class HTTP
             return "404 Not Found";
         }
     };
-    private:
+    protected:
     int     associated_fd;
     std::string request_content;
     std::string request_method;
@@ -58,10 +52,10 @@ class HTTP
     std::string protocol_version;
     std::string pwd;
     std::string content;
+
     int code;
-    void    parse_input();
-    void    parse_initial_response_line();
-    void    parse_header_lines();
+    void    parse_initial_response_line(std::stringstream &flux);
+    void    parse_header_lines(std::stringstream &flux);
     void    print_content();
     void    send_to_client();
     void    send_response();
@@ -73,5 +67,7 @@ class HTTP
     std::string const   determine_extension(std::string const &other) const;
     std::vector<std::pair<std::string, std::string> > header_lines;
 };
+
+# include "find_structure.tpp"
 
 #endif

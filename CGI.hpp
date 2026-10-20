@@ -10,35 +10,34 @@
 # include <sys/wait.h>
 # include <string.h>
 
-class   CGI
+
+class   CGI : public HTTP
 {
     public:
-        CGI(HTTP &other);
+        CGI(HTTP const &other);
         CGI(CGI const &other);
         CGI &operator=(CGI const &other);
         ~CGI();
         std::string get_output();
     private:
+    
         std::string    exec_program;
         char    **argv;
         std::vector<char *> envp;
-        std::vector<std::pair <std::string, std::string> > const env;
-        std::string const method;
-        std::string const file;
-        std::string const protocol;
         std::string host;
-        std::string const fd;
-        std::string const content;
         std::string output_cgi;
+
         void    fork_program();
         void    parse_input();
-        void    basic_envp();
-        void    script_name();
-        void    extract_host_port();
-        void    sup_post();
+        void    basic_envp(std::vector<std::string> &vec);
+        void    script_name(std::vector<std::string> &vec);
+        void    extract_host_port(std::vector<std::string> &vec);
+        void    sup_post(std::vector<std::string> &vec);
+        void    transform_to_c_str(std::vector<std::string> const &vec);
         std::string const find_type() const;
 };
 
 # include "find_structure.tpp"
+# include "concatenate.tpp"
 
 #endif

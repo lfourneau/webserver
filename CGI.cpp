@@ -1,19 +1,18 @@
 #include "CGI.hpp"
 
-CGI::CGI(HTTP &other) : env(other.get_env()), method(other.get_method()),\
-file(other.get_pwd()), protocol(other.get_protocol()), host(other.get_value_host()), \
-fd(other.get_fd()), content(other.get_content())
+CGI::CGI(HTTP const &other) : HTTP(other) 
 {
     exec_program = "/usr/bin/python3";
 }
 
-CGI::CGI(CGI const &other)
+CGI::CGI(CGI const &other) : HTTP(0)
 {
-
+    (void)other;
 }
 
 CGI &CGI::operator=(CGI const &other)
 {
+    (void)other;
     return (*this);
 }
 
@@ -24,9 +23,11 @@ CGI::~CGI()
 
 void    CGI::parse_input()
 { 
-    extract_host_port();
-    script_name();
-    basic_envp();
+    std::vector<std::string> string_vector;
+    extract_host_port(string_vector);
+    script_name(string_vector);
+    basic_envp(string_vector);
+    transform_to_c_str(string_vector);
 }
 
 void    CGI::fork_program()
@@ -41,13 +42,14 @@ void    CGI::fork_program()
     child  = fork();
     if (child == 0) 
     {
+        char **vide = NULL;
        dup2(to_file[0], STDIN_FILENO);
        dup2(to_server[1], STDOUT_FILENO);
        close(to_file[0]);
        close(to_file[1]);
        close(to_server[0]);
        close(to_server[1]);
-       execve(exec_program.c_str(), NULL, &envp[0]);
+       execve(exec_program.c_str(), vide, &envp[0]);
     }
     close(to_file[0]);
     write(to_file[1], content.c_str(), content.size());
@@ -59,7 +61,7 @@ void    CGI::fork_program()
     {
         bzero(buffer, 4096);
         total = read(to_server[0], buffer, 4096);
-        if (total = 0)
+        if (total == 0)
             break;
         output_cgi.append(buffer, total);
     }
@@ -68,33 +70,33 @@ void    CGI::fork_program()
     waitpid(child, &status, 0);
 }
 
-void    CGI::basic_envp()
+void    CGI::basic_envp(std::vector<std::string> &vec)
 {
-    envp.push_back("HTTP_GATEWAY_INTERFACE=CGI/1.1");
-    envp.push_back(to_c_str("HTTP_REQUEST_METHOD=", method));
-    envp.push_back(to_c_str("HTTP_PROTOCOL_VERSION=", protocol));
-    envp.push_back("HTTP_SERVER_SOFTWARE=webserv/1.0");
-    envp.push_back(to_c_str("HTTP_REMOTE_ADDR=" , fd));
-    envp.push_back(NULL);
+    vec.push_back("HTTP_GATEWAY_INTERFACE=CGI/1.1");
+    vec.push_back(TransformToString() << "HTTP_REQUEST_METHOD=" << request_method);
+    vec.push_back(TransformToString() << "HTTP_PROTOCOL_VERSION=" << protocol_version);
+    vec.push_back("HTTP_SERVER_SOFTWARE=webserv/1.0");
+    vec.push_back(TransformToString() << "HTTP_REMOTE_ADDR=" << associated_fd);
+    vec.push_back(NULL);
 }
 
-void    CGI::script_name()
+void    CGI::script_name(std::vector<std::string> &vec)
 {
-    std::stringstream pwd;
+    std::stringstream ss_pwd;
     std::string filename;
     std::string vars;
 
-    pwd << file;
+    ss_pwd << pwd;
 
-    getline(pwd, filename, '?');
-    getline(pwd, vars);
+    getline(ss_pwd, filename, '?');
+    getline(ss_pwd, vars);
     filename = HelperFunctions::trim(filename, " \r\n\t");
     vars = HelperFunctions::trim(vars, " \r\n\t");
-    envp.push_back(to_c_str("HTTP_SCRIPT_NAME=" , filename));
-    envp.push_back(to_c_str("HTTP_QUERY_STRING=" , vars));
+    vec.push_back(TransformToString() << "HTTP_SCRIPT_NAME=" << filename);
+    vec.push_back(TransformToString() << "HTTP_QUERY_STRING=" << vars);
 }
 
-void    CGI::extract_host_port()
+void    CGI::extract_host_port(std::vector<std::string> &vec)
 {
     std::stringstream content;
 
@@ -106,16 +108,16 @@ void    CGI::extract_host_port()
     getline(content, port);
     port = HelperFunctions::trim(hostname, " \r\n");
     hostname = HelperFunctions::trim(port, " \r\n");
-    envp.push_back(to_c_str("SERVER_NAME=" , hostname));
-    envp.push_back(to_c_str("SERVER_PORT=" , port));
+    vec.push_back(TransformToString() << "SERVER_NAME=" << hostname);
+    vec.push_back(TransformToString() << "SERVER_PORT=" << port);
 }
 
-void    CGI::sup_post()
+void    CGI::sup_post(std::vector<std::string> &vec)
 {
-    if (method == "POST")
+    if (request_method == "POST")
     {
-        envp.push_back(to_c_str("CONTENT_LENGTH=" , content.size()));
-        envp.push_back(to_c_str("CONTENT_TYPE=" , find_type()));
+        vec.push_back(TransformToString() << "CONTENT_LENGTH=" << content.size());
+        vec.push_back(TransformToString() << "CONTENT_TYPE=" << find_type());
     }
 }
 
@@ -129,4 +131,17 @@ std::string const CGI::find_type() const
 std::string CGI::get_output()
 {
     return (this->output_cgi);
+}
+
+void    CGI::transform_to_c_str(std::vector<std::string> const &vec)
+{
+    std::vector<std::string>::const_iterator it;
+
+    for (it = vec.begin(); it != vec.end(); it++)
+    {
+        char *copy;
+
+        copy = const_cast<char *>((*it).c_str());
+        envp.push_back(copy);
+    }
 }
