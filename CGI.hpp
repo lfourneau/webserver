@@ -9,6 +9,7 @@
 # include <fcntl.h>
 # include <sys/wait.h>
 # include <string.h>
+# include <cstring>
 
 
 class   CGI : public HTTP
@@ -22,18 +23,18 @@ class   CGI : public HTTP
     private:
     
         std::string    exec_program;
-        char    **argv;
+        std::vector<char *> argv;
         std::vector<char *> envp;
-        std::string host;
         std::string output_cgi;
 
         void    fork_program();
         void    parse_input();
         void    basic_envp(std::vector<std::string> &vec);
         void    script_name(std::vector<std::string> &vec);
-        void    extract_host_port(std::vector<std::string> &vec);
         void    sup_post(std::vector<std::string> &vec);
         void    transform_to_c_str(std::vector<std::string> const &vec);
+        void    create_argv();
+        void    free_char_lists();
         std::string const find_type() const;
 };
 

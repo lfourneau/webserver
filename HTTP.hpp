@@ -16,7 +16,7 @@
 # include <stdio.h>
 # include <stdlib.h>
 
-# define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver/html_files"
+# define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver"
 
 class HTTP
 {
@@ -51,25 +51,28 @@ class HTTP
     std::string protocol_version;
     std::string pwd;
     std::string content;
+    std::string host;
     std::string host_port;
     std::string file_type;
     std::string query_string;
     std::string content_type;
+    std::string body;
     bool    cgi_request;
     int code;
+    std::vector<std::pair<std::string, std::string> > header_lines;
     
     void    parse_initial_response_line(std::stringstream &flux);
     void    parse_header_lines(std::stringstream &flux);
+    void    http_body(std::stringstream &flux);
     void    print_content();
     void    read_file();
     void    read_error_file(const char *error);
     void    read_and_store_file(int fd);
     void    GETResponse(std::string const &other);
     void    add_to_previous_pair(std::string &content);
-    void    check_cgi_request();
+    bool    check_cgi_request();
     std::string const   output_first_line();
     void    determine_extension();
-    std::vector<std::pair<std::string, std::string> > header_lines;
 };
 
 # include "find_structure.tpp"

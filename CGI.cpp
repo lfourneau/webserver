@@ -18,16 +18,17 @@ CGI &CGI::operator=(CGI const &other)
 
 CGI::~CGI()
 {
-
+    free_char_lists();
 }
 
 void    CGI::parse_input()
 { 
     std::vector<std::string> string_vector;
-    extract_host_port(string_vector);
     script_name(string_vector);
+    sup_post(string_vector);
     basic_envp(string_vector);
     transform_to_c_str(string_vector);
+    create_argv();
 }
 
 void    CGI::fork_program()
@@ -42,17 +43,16 @@ void    CGI::fork_program()
     child  = fork();
     if (child == 0) 
     {
-        char **vide = NULL;
-       dup2(to_file[0], STDIN_FILENO);
-       dup2(to_server[1], STDOUT_FILENO);
-       close(to_file[0]);
-       close(to_file[1]);
-       close(to_server[0]);
-       close(to_server[1]);
-       execve(exec_program.c_str(), vide, &envp[0]);
+        dup2(to_file[0], STDIN_FILENO);
+        dup2(to_server[1], STDOUT_FILENO);
+        close(to_file[0]);
+        close(to_file[1]);
+        close(to_server[0]);
+        close(to_server[1]);
+        execve(exec_program.c_str(), &argv[0], &envp[0]);
     }
     close(to_file[0]);
-    write(to_file[1], content.c_str(), content.size());
+    write(to_file[1], body.c_str(), body.size());
     close(to_file[1]);
 
     close(to_server[1]);
@@ -72,40 +72,21 @@ void    CGI::fork_program()
 
 void    CGI::basic_envp(std::vector<std::string> &vec)
 {
+    vec.push_back(TransformToString() << "SERVER_NAME=" << host);
+    vec.push_back(TransformToString() << "SERVER_PORT=" << host_port);
     vec.push_back("HTTP_GATEWAY_INTERFACE=CGI/1.1");
     vec.push_back(TransformToString() << "HTTP_REQUEST_METHOD=" << request_method);
     vec.push_back(TransformToString() << "HTTP_PROTOCOL_VERSION=" << protocol_version);
     vec.push_back("HTTP_SERVER_SOFTWARE=webserv/1.0");
     vec.push_back(TransformToString() << "HTTP_REMOTE_ADDR=" << associated_fd);
-    vec.push_back(NULL);
 }
 
 void    CGI::script_name(std::vector<std::string> &vec)
 {
-    std::stringstream ss_pwd;
-    std::string filename;
-    std::string vars;
-
-    ss_pwd << pwd;
-
-    getline(ss_pwd, filename, '?');
-    getline(ss_pwd, vars);
-    filename = HelperFunctions::trim(filename, " \r\n\t");
-    vars = HelperFunctions::trim(vars, " \r\n\t");
-    vec.push_back(TransformToString() << "HTTP_SCRIPT_NAME=" << filename);
-    vec.push_back(TransformToString() << "HTTP_QUERY_STRING=" << vars);
-}
-
-void    CGI::extract_host_port(std::vector<std::string> &vec)
-{
-    std::stringstream content;
-    std::string hostname;
-
-    content << host;
-    getline(content, hostname, ':');
-    hostname = HelperFunctions::trim(hostname, " \r\n");
-    vec.push_back(TransformToString() << "SERVER_NAME=" << hostname);
-    vec.push_back(TransformToString() << "SERVER_PORT=" << host_port);
+    pwd = HelperFunctions::trim(pwd, " \r\n\t");
+    query_string = HelperFunctions::trim(query_string, " \r\n\t");
+    vec.push_back(TransformToString() << "HTTP_SCRIPT_NAME=" << pwd);
+    vec.push_back(TransformToString() << "HTTP_QUERY_STRING=" << query_string);
 }
 
 void    CGI::sup_post(std::vector<std::string> &vec)
@@ -133,13 +114,32 @@ std::string CGI::get_output()
 
 void    CGI::transform_to_c_str(std::vector<std::string> const &vec)
 {
+    free_char_lists();
+
     std::vector<std::string>::const_iterator it;
 
     for (it = vec.begin(); it != vec.end(); it++)
     {
-        char *copy;
+        char *copy = new char[it->size() + 1];
 
-        copy = const_cast<char *>((*it).c_str());
+        std::strcpy(copy, it->c_str());
         envp.push_back(copy);
+    }
+    envp.push_back(NULL);
+}
+
+void    CGI::create_argv()
+{
+    argv.push_back(const_cast<char *>(exec_program.c_str()));
+    argv.push_back(const_cast<char *>(pwd.c_str()));
+    argv.push_back(NULL);
+}
+
+void    CGI::free_char_lists()
+{
+    for (long unsigned int i = 0; i < envp.size() ; i++)
+    {
+        delete envp[i];
+        envp[i] = NULL;
     }
 }

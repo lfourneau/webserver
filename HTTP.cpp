@@ -10,13 +10,21 @@ HTTP::HTTP(int fd) : associated_fd(fd), pwd(PATH_FILES_DIRECTORY), cgi_request(f
 HTTP::HTTP(const HTTP &other)
 {
     this->associated_fd = other.associated_fd;
+    this->request_content = other.request_content;
     this->request_method = other.request_method;
     this->URI = other.URI;
     this->protocol_version = other.protocol_version;
-    this->request_content = other.request_content;
-    this->header_lines = other.header_lines;
     this->pwd = other.pwd;
+    this->content = other.content;
+    this->host = other.host;
+    this->host_port = other.host_port;
+    this->file_type = other.file_type;
+    this->query_string = other.query_string;
+    this->content_type = other.content_type;
+    this->body = other.body;
+    this->cgi_request = other.cgi_request;
     this->code = other.code;
+    this->header_lines = other.header_lines;
 }
 
 HTTP    &HTTP::operator=(const HTTP &other)
@@ -24,13 +32,21 @@ HTTP    &HTTP::operator=(const HTTP &other)
     if (this != &other)
     {
         this->associated_fd = other.associated_fd;
+        this->request_content = other.request_content;
         this->request_method = other.request_method;
         this->URI = other.URI;
         this->protocol_version = other.protocol_version;
-        this->request_content = other.request_content;
-        this->header_lines = other.header_lines;
         this->pwd = other.pwd;
+        this->content = other.content;
+        this->host = other.host;
+        this->host_port = other.host_port;
+        this->file_type = other.file_type;
+        this->query_string = other.query_string;
+        this->content_type = other.content_type;
+        this->body = other.body;
+        this->cgi_request = other.cgi_request;
         this->code = other.code;
+        this->header_lines = other.header_lines;
     }
     return (*this);
 }
@@ -54,12 +70,15 @@ void HTTP::print_content()
 void    HTTP::get_value_host()
 {
     std::vector<std::pair <std::string, std::string> >::const_iterator it;
+    std::stringstream info;
 
     for (it = header_lines.begin(); it != header_lines.end(); it++)
     {
         if (it->first == "Host")
         {
-            host_port = it->second;
+            info << it->second;
+            getline(info, host, ':');
+            getline(info, host_port);
             return;
         }
     }
@@ -94,6 +113,7 @@ void HTTP::analyse_buffer()
     {
         parse_initial_response_line(flux);
         parse_header_lines(flux);
+        http_body(flux);
         get_value_host();
         read_file();
         GETResponse(content);
@@ -174,13 +194,21 @@ void    HTTP::add_to_previous_pair(std::string &content)
     it.second.append(content);
 }
 
+void    HTTP::http_body(std::stringstream &flux)
+{
+    std::ostringstream tmp;
+    tmp << flux.rdbuf();
+    body = tmp.str();
+}
+
 // ici on lit et on stocke le contenu du fichier dans une string
 void    HTTP::read_file()
 {
     std::string file = pwd;
     int file_desc;
 
-    check_cgi_request();
+    if (!check_cgi_request())
+        file += "/html_files";
     if (this->request_method == "GET")
     {
         if (URI == "/")
@@ -198,10 +226,10 @@ void    HTTP::read_file()
     read_and_store_file(file_desc);
 }
 
-void    HTTP::check_cgi_request()
+bool    HTTP::check_cgi_request()
 {
     if (URI.find("?") == std::string::npos)
-        return;
+        return(false);
 
     std::stringstream line;
     line << URI;
@@ -210,6 +238,7 @@ void    HTTP::check_cgi_request()
     getline(line, URI, '?');
     getline(line, query_string);
     cgi_request = true;
+    return (true);
 }
 
 void    HTTP::determine_extension()
@@ -246,7 +275,7 @@ void    HTTP::read_error_file(const char *error)
     (void)error;
 
     this->pwd = "";
-    this->pwd = TransformToString() << PATH_FILES_DIRECTORY << "/error_page.html";
+    this->pwd = TransformToString() << PATH_FILES_DIRECTORY << "/html_files/error_page.html";
     content_type = "text/html";
     fd = open(this->pwd.c_str(), O_RDONLY);
         //ici peut etre verifier que ca ne renvoie pas -1
@@ -277,7 +306,7 @@ void    HTTP::read_and_store_file(int fd)
 void    HTTP::GETResponse(std::string const &content_file)
 {
     std::ostringstream output_message;
-    std::string yoyo;
+    std::string final_content;
     (void) content_file;
 
     if (cgi_request)
@@ -287,18 +316,12 @@ void    HTTP::GETResponse(std::string const &content_file)
         std::cout << "CGI instance created" << std::endl;
 
         content = send_to_cgi.get_output();
-        output_message << output_first_line() << "Content-Type: text/html" << "\r\n" \
-        << "Content-Length: " << content.size() << "\r\n\r\n" << content;
-        yoyo = output_message.str();
-        send(this->associated_fd, content.c_str(), content.size(), 0);
-
-        return;
     }
     output_message << output_first_line() << "Content-Type:" << content_type << "\r\n" \
     << "Content-Length: " << content.size() << "\r\n\r\n" << content;
-    yoyo = output_message.str();
-    std::cout << yoyo << "\n\n" << content << std::endl;
-    send(this->associated_fd, yoyo.c_str(), yoyo.size(), 0);
+    final_content = output_message.str();
+    std::cout << final_content << "\n\n" << content << std::endl;
+    send(this->associated_fd, final_content.c_str(), final_content.size(), 0);
 
     return;
 }
