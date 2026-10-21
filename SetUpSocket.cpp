@@ -103,7 +103,6 @@ void    SetUpSocket::monitor_connections()
                         continue;
                     if (i == fd_socket)
                     {
-                        std::cout << "new connection received" << std::endl;
                         fd_received = accept(fd_socket, NULL, NULL);
                         FD_SET(fd_received, &keep);
 

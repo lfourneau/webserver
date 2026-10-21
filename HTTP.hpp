@@ -61,18 +61,28 @@ class HTTP
     int code;
     std::vector<std::pair<std::string, std::string> > header_lines;
     
+    //helper functions
+    void    print_content();
+
+    //parse the input
     void    parse_initial_response_line(std::stringstream &flux);
     void    parse_header_lines(std::stringstream &flux);
+    void    add_to_previous_pair(std::string &content);
     void    http_body(std::stringstream &flux);
-    void    print_content();
+    void    determine_extension();
+    void    determine_method();
+
+    //GET content methods
     void    read_file();
     void    read_error_file(const char *error);
     void    read_and_store_file(int fd);
-    void    GETResponse(std::string const &other);
-    void    add_to_previous_pair(std::string &content);
+
+    //CGI requests
     bool    check_cgi_request();
     std::string const   output_first_line();
-    void    determine_extension();
+
+    //send to browser methods
+    void    GETResponse(std::string const &other);
 };
 
 # include "find_structure.tpp"

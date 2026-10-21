@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Formulaire POST</title>
+</head>
+<body>
+  <h1>Formulaire POST</h1>
+
+  <!-- Le navigateur envoie :
+       POST /login HTTP/1.1
+       Content-Type: application/x-www-form-urlencoded
+       Content-Length: <taille>
+
+       username=...&password=...                                   -->
+  <form action="/login" method="post">
+    <label>Nom <input name="username"></label>
+    <label>Mot de passe <input name="password" type="password"></label>
+    <button type="submit">Envoyer</button>
+  </form>
+
+  <!-- Variante upload : même balise, avec enctype multipart.
+       Le navigateur envoie un corps multipart/form-data avec une boundary. -->
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="file">
+    <button type="submit">Uploader</button>
+  </form>
+</body>
+</html>

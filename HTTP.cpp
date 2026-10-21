@@ -64,7 +64,7 @@ int  HTTP::get_client_fd()
 
 void HTTP::print_content()
 {
-    std::cout << this->request_content;
+    std::cout << request_content;
 }
 
 void    HTTP::get_value_host()
@@ -108,6 +108,7 @@ void HTTP::analyse_buffer()
 {
     std::stringstream flux;
 
+    print_content();
     flux << this->request_content;
     try
     {
@@ -115,8 +116,8 @@ void HTTP::analyse_buffer()
         parse_header_lines(flux);
         http_body(flux);
         get_value_host();
-        read_file();
-        GETResponse(content);
+        determine_extension();
+        determine_method();
     }
     catch(const std::exception& e)
     {
@@ -124,6 +125,30 @@ void HTTP::analyse_buffer()
         GETResponse(content);
     }
     close(associated_fd);
+}
+
+void    HTTP::determine_method()
+{
+    //il faudra creer des strucutes qui autorisent qqn d'externe a lire ecrire ou executer 
+    //un document
+    if (request_method == "GET" || (request_method == "POST" && cgi_request == true))
+    {
+        read_file();
+        GETResponse(content);
+    }
+    else if (request_method == "POST")
+    {
+        //trois cas de figures pour un post
+        //soit il fait reference a un fichier dans quel cas cgi
+        //soit il fait reference a un dossier donc stocker
+        //soit il fait du caca donc erreur
+    }
+    else if (request_method == "DELETE")
+    {
+        ;
+    }
+    //else
+        //renvoyer requete invalide
 }
 
 void HTTP::parse_initial_response_line(std::stringstream &flux)
@@ -207,20 +232,16 @@ void    HTTP::read_file()
     std::string file = pwd;
     int file_desc;
 
-    if (!check_cgi_request())
+    if (cgi_request == false)
         file += "/html_files";
-    if (this->request_method == "GET")
+    if (URI == "/")
+        URI = "/index.html"; 
+    file += URI;
+    file_desc = open(file.c_str(), O_RDONLY);
+    if (file_desc == -1)
     {
-        if (URI == "/")
-            URI = "/index.html"; 
-        determine_extension();
-        file += URI;
-        file_desc = open(file.c_str(), O_RDONLY);
-        if (file_desc == -1)
-        {
-            code = 404; 
-            throw(FileNotFound());
-        }
+        code = 404; 
+        throw(FileNotFound());
     }
     pwd = file;
     read_and_store_file(file_desc);
@@ -237,7 +258,6 @@ bool    HTTP::check_cgi_request()
     URI.clear();
     getline(line, URI, '?');
     getline(line, query_string);
-    cgi_request = true;
     return (true);
 }
 
@@ -245,9 +265,11 @@ void    HTTP::determine_extension()
 {
     size_t last_slash;
     size_t exstension;
-    std::string file_exstensions[] = {"html", "htm", "css", "js", "txt", "json", "png", "jpg", "jpeg", "gif", "svg", "ico", "pdf"};
-    std::string file_type[] = {"text/html", "text/html", "text/css", "text/javascript", "text/plain", "application/json", \
-    "image/png", "image/jpeg", "image/jpeg", "image/gif", "image/svg+xml", "image/x-ico", "application/pdf" };
+    std::string file_exstensions[] = {"html", "htm", "css", "js", "txt", "json", "png", "jpg", \
+        "jpeg", "gif", "svg", "ico", "pdf", "py"};
+    std::string file_type[] = {"text/html", "text/html", "text/css", "text/javascript", "text/plain", \
+        "application/json", "image/png", "image/jpeg", "image/jpeg", "image/gif", "image/svg+xml", \
+        "image/x-ico", "application/pdf", "text/html" };
 
     last_slash = URI.rfind('/');
     exstension = URI.rfind('.');
@@ -261,6 +283,8 @@ void    HTTP::determine_extension()
         if (URI.compare(exstension + 1, std::string::npos, file_exstensions[i]) == 0)
         {
             content_type = file_type[i];
+            if (i > 12)
+                cgi_request = true;
             return ;
         }
     }
@@ -313,14 +337,11 @@ void    HTTP::GETResponse(std::string const &content_file)
     {
         CGI     send_to_cgi(*this);
 
-        std::cout << "CGI instance created" << std::endl;
-
         content = send_to_cgi.get_output();
     }
     output_message << output_first_line() << "Content-Type:" << content_type << "\r\n" \
     << "Content-Length: " << content.size() << "\r\n\r\n" << content;
     final_content = output_message.str();
-    std::cout << final_content << "\n\n" << content << std::endl;
     send(this->associated_fd, final_content.c_str(), final_content.size(), 0);
 
     return;
