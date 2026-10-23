@@ -15,6 +15,7 @@
 # include <sys/socket.h>
 # include <stdio.h>
 # include <stdlib.h>
+# include <map>
 
 # define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver"
 
@@ -59,7 +60,7 @@ class HTTP
     std::string body;
     bool    cgi_request;
     int code;
-    std::vector<std::pair<std::string, std::string> > header_lines;
+    std::map<std::string, std::string> header_lines;
     
     //helper functions
     void    print_content();

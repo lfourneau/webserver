@@ -1,5 +1,6 @@
 #include "HTTP.hpp"
 #include "CGI.hpp"
+#include "Post.hpp"
 
 //Les constructeurs
 
@@ -69,20 +70,17 @@ void HTTP::print_content()
 
 void    HTTP::get_value_host()
 {
-    std::vector<std::pair <std::string, std::string> >::const_iterator it;
+    std::map<std::string, std::string>::iterator host_val = header_lines.find("Host");
     std::stringstream info;
 
-    for (it = header_lines.begin(); it != header_lines.end(); it++)
+    if (host_val == header_lines.end())
     {
-        if (it->first == "Host")
-        {
-            info << it->second;
-            getline(info, host, ':');
-            getline(info, host_port);
-            return;
-        }
+        std::cout << "Error with the host header line" << std::endl;
+        return ;
     }
-    std::cout << "Error with the host header line" << std::endl;
+    info << host_val->second;
+    getline(info, host, ':');
+    getline(info, host_port);
 }
 
 //
@@ -108,7 +106,6 @@ void HTTP::analyse_buffer()
 {
     std::stringstream flux;
 
-    print_content();
     flux << this->request_content;
     try
     {
@@ -138,9 +135,16 @@ void    HTTP::determine_method()
     }
     else if (request_method == "POST")
     {
-        //trois cas de figures pour un post
-        //soit il fait reference a un dossier donc stocker
-        //soit il fait du caca donc erreur
+        Post post_file(*this);
+
+        try
+        {
+            post_file.request_post();
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+        }
     }
     else if (request_method == "DELETE")
     {
@@ -202,7 +206,7 @@ void HTTP::parse_header_lines(std::stringstream &flux)
         value = HelperFunctions::trim(value, "\r ");
         if (key.empty() == true || value.empty() == true)
             throw(ErrorInHeader());
-        this->header_lines.push_back(std::make_pair(key, value));
+        this->header_lines[key] =  value;
     }
 }
 
@@ -215,8 +219,8 @@ void    HTTP::add_to_previous_pair(std::string &content)
         return;
     }
 
-    std::pair<std::string, std::string> &it = this->header_lines.back();
-    it.second.append(content);
+    std::map<std::string, std::string>::reverse_iterator it = header_lines.rbegin();
+    it->second.append(content);
 }
 
 void    HTTP::http_body(std::stringstream &flux)
