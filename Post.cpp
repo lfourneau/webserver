@@ -25,9 +25,10 @@ void Post::request_post()
 {
     size_t end_header = body.find("\r\n\r\n");
     std::stringstream   read_file(body.substr(0, end_header));
+    std::stringstream   read_body(body.substr(end_header, std::string::npos));
 
     get_post_headers(read_file);
-    get_file_content(read_file);
+    get_file_content(read_body);
     if (URI == "/upload")
     {
         save_to_upload();
@@ -40,7 +41,7 @@ void    Post::save_to_upload()
 {
     int fd;
     
-    fd = open("./upload/test.txt", O_APPEND | O_CREAT);
+    fd = open("./upload/test.txt", O_RDWR |  O_CREAT | O_TRUNC, 0644);
     write(fd, file_body.c_str(), file_body.size());
     close(fd);
 }
