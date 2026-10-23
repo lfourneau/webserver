@@ -139,7 +139,6 @@ void    HTTP::determine_method()
     else if (request_method == "POST")
     {
         //trois cas de figures pour un post
-        //soit il fait reference a un fichier dans quel cas cgi
         //soit il fait reference a un dossier donc stocker
         //soit il fait du caca donc erreur
     }
@@ -168,6 +167,7 @@ void HTTP::parse_initial_response_line(std::stringstream &flux)
     {
         std::cout << "The header is not valid" << std::endl;
     }
+    check_cgi_request();
 }
 
 void HTTP::parse_header_lines(std::stringstream &flux)
