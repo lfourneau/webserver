@@ -1,0 +1,7 @@
+{
+    "server": "webserv",
+    "language": "C++98",
+    "methods": ["GET", "POST", "DELETE"],
+    "cgi": ["python3", "php"],
+    "message": "This JSON file is served with Content-Type: application/json"
+}

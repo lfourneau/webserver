@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POST · webserv</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js"></script>
+</head>
+<body>
+    <header id="site-header"></header>
+
+    <main>
+        <h1 class="page-title">POST requests</h1>
+        <p class="page-intro"><code>POST</code> sends data in the request body instead of the URL.
+           A CGI script gets that body on its standard input. An upload sends a file as a
+           <code>multipart/form-data</code> body, and the server saves it in <code>upload/</code>.</p>
+
+        <div class="grid-2 section">
+            <div class="card">
+                <h2><span class="badge post">POST</span> Form data to a CGI script</h2>
+                <p class="muted small">Body sent as <code>application/x-www-form-urlencoded</code>,
+                   e.g. <code>name=Marvin&amp;message=hi</code>.</p>
+                <form id="post-form" method="POST" action="/cgi-bin/hello.py">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" value="Marvin" required>
+                    <label for="message">Message</label>
+                    <textarea id="message" name="message">Life, the universe and everything.</textarea>
+                    <label for="lang">Script</label>
+                    <select id="lang">
+                        <option value="/cgi-bin/hello.py">Python (hello.py)</option>
+                        <option value="/cgi-bin/hello.php">PHP (hello.php)</option>
+                    </select>
+                    <div class="btn-group">
+                        <button class="btn" type="submit">Open result page</button>
+                        <button class="btn secondary" type="button" onclick="inspectPost()">Inspect response</button>
+                    </div>
+                </form>
+                <div id="post-result" class="result"></div>
+            </div>
+
+            <div class="card">
+                <h2><span class="badge post">POST</span> File upload</h2>
+                <p class="muted small">Sent to <code>/upload</code> as <code>multipart/form-data</code>.
+                   Uploaded files can then be removed from the <a href="/delete.html">DELETE page</a>.</p>
+                <form id="upload-form" method="POST" action="/upload" enctype="multipart/form-data">
+                    <label for="file">File</label>
+                    <input type="file" id="file" name="file" required>
+                    <div class="btn-group">
+                        <button class="btn" type="submit">Upload</button>
+                        <a class="btn secondary" href="/delete.html">See uploaded files</a>
+                    </div>
+                </form>
+                <div id="upload-result" class="result"></div>
+                <p class="note">Start small: text files are easiest to check by hand in <code>upload/</code>.
+                   Try a large file on the <a href="/status.html">status page</a> to see <code>413</code>.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer id="site-footer"></footer>
+
+    <script>
+        var postForm = document.getElementById("post-form");
+        var lang = document.getElementById("lang");
+        lang.addEventListener("change", function () { postForm.action = lang.value; });
+
+        function inspectPost() {
+            var body = new URLSearchParams(new FormData(postForm)).toString();
+            runInto("post-result", "POST", lang.value, body,
+                    { "Content-Type": "application/x-www-form-urlencoded" });
+        }
+
+        document.getElementById("upload-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            var input = document.getElementById("file");
+            if (!input.files.length) return;
+            var data = new FormData();
+            data.append("file", input.files[0]);
+            runInto("upload-result", "POST", "/upload", data);
+        });
+    </script>
+</body>
+</html>

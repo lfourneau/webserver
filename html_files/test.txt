@@ -1,0 +1,4 @@
+Hello from webserv!
+
+This is a plain text file served from html_files/test.txt.
+The server should send it with "Content-Type: text/plain".

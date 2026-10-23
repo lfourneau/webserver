@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static files · webserv</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js"></script>
+</head>
+<body>
+    <header id="site-header"></header>
+
+    <main>
+        <h1 class="page-title">Static files</h1>
+        <p class="page-intro">The server reads files from <code>html_files/</code> and picks the
+           <code>Content-Type</code> from the file extension. Everything on this page, including
+           the stylesheet and the script, is a static file.</p>
+
+        <div class="card section">
+            <h2>Images</h2>
+            <div class="gallery">
+                <figure>
+                    <img src="/image.png" alt="PNG image">
+                    <figcaption><code>/image.png</code> &middot; image/png</figcaption>
+                </figure>
+                <figure>
+                    <img src="/image.jpg" alt="JPEG image">
+                    <figcaption><code>/image.jpg</code> &middot; image/jpeg</figcaption>
+                </figure>
+                <figure>
+                    <img src="/cat.gif" alt="Animated GIF of a cat">
+                    <figcaption><code>/cat.gif</code> &middot; image/gif</figcaption>
+                </figure>
+                <figure>
+                    <img src="/missing-image.png" alt="This image does not exist">
+                    <figcaption><code>/missing-image.png</code> &middot; 404 on purpose</figcaption>
+                </figure>
+            </div>
+        </div>
+
+        <div class="grid-2 section">
+            <div class="card">
+                <h2>Other file types</h2>
+                <p class="muted small">Open a file in a new tab, or inspect the response here.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>File</th><th>Expected type</th><th></th></tr></thead>
+                        <tbody>
+                            <tr><td><a href="/sample.pdf" target="_blank">sample.pdf</a></td><td class="mono">application/pdf</td>
+                                <td><button class="btn sm secondary" onclick="runInto('file-result','GET','/sample.pdf')">Inspect</button></td></tr>
+                            <tr><td><a href="/test.txt" target="_blank">test.txt</a></td><td class="mono">text/plain</td>
+                                <td><button class="btn sm secondary" onclick="runInto('file-result','GET','/test.txt')">Inspect</button></td></tr>
+                            <tr><td><a href="/data.json" target="_blank">data.json</a></td><td class="mono">application/json</td>
+                                <td><button class="btn sm secondary" onclick="runInto('file-result','GET','/data.json')">Inspect</button></td></tr>
+                            <tr><td><a href="/style.css" target="_blank">style.css</a></td><td class="mono">text/css</td>
+                                <td><button class="btn sm secondary" onclick="runInto('file-result','GET','/style.css')">Inspect</button></td></tr>
+                            <tr><td><a href="/app.js" target="_blank">app.js</a></td><td class="mono">text/javascript</td>
+                                <td><button class="btn sm secondary" onclick="runInto('file-result','GET','/app.js')">Inspect</button></td></tr>
+                            <tr><td><a href="/favicon.ico" target="_blank">favicon.ico</a></td><td class="mono">image/x-icon</td>
+                                <td><button class="btn sm secondary" onclick="runInto('file-result','GET','/favicon.ico')">Inspect</button></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="file-result" class="result"></div>
+            </div>
+
+            <div class="card">
+                <h2>Extension → handler</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Extension</th><th>Handled as</th></tr></thead>
+                        <tbody>
+                            <tr><td class="mono">.html .htm</td><td class="mono">text/html</td></tr>
+                            <tr><td class="mono">.css</td><td class="mono">text/css</td></tr>
+                            <tr><td class="mono">.js</td><td class="mono">text/javascript</td></tr>
+                            <tr><td class="mono">.txt</td><td class="mono">text/plain</td></tr>
+                            <tr><td class="mono">.json</td><td class="mono">application/json</td></tr>
+                            <tr><td class="mono">.png .jpg .gif .svg .ico</td><td class="mono">image/*</td></tr>
+                            <tr><td class="mono">.pdf</td><td class="mono">application/pdf</td></tr>
+                            <tr><td class="mono">.py</td><td>CGI: run with <code>python3</code></td></tr>
+                            <tr><td class="mono">.php</td><td>CGI: run with <code>php</code></td></tr>
+                            <tr><td class="mono">(none)</td><td class="mono">application/octet-stream</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer id="site-footer"></footer>
+</body>
+</html>

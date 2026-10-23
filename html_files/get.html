@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GET · webserv</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js"></script>
+</head>
+<body>
+    <header id="site-header"></header>
+
+    <main>
+        <h1 class="page-title">GET requests</h1>
+        <p class="page-intro"><code>GET</code> asks the server for a resource. For a static file it
+           sends the file. For a CGI script it runs the script and passes it whatever follows the
+           <code>?</code> in the URL (the query string).</p>
+
+        <div class="grid-2 section">
+            <div class="card">
+                <h2><span class="badge get">GET</span> Query string to a CGI script</h2>
+                <p class="muted small">The browser builds <code>/cgi-bin/hello.py?name=...&amp;color=...</code>
+                   and the script reads it from <code>QUERY_STRING</code>.</p>
+                <form id="get-form" method="GET" action="/cgi-bin/hello.py">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" value="Marvin">
+                    <label for="color">Favourite colour</label>
+                    <input type="text" id="color" name="color" value="blue">
+                    <label for="lang">Script</label>
+                    <select id="lang">
+                        <option value="/cgi-bin/hello.py">Python (hello.py)</option>
+                        <option value="/cgi-bin/hello.php">PHP (hello.php)</option>
+                    </select>
+                    <div class="btn-group">
+                        <button class="btn" type="submit">Open result page</button>
+                        <button class="btn secondary" type="button" onclick="inspectGet()">Inspect response</button>
+                    </div>
+                </form>
+                <div id="get-result" class="result"></div>
+            </div>
+
+            <div class="card">
+                <h2>Static resources</h2>
+                <p class="muted small">Each link is a plain <code>GET</code> for a file.</p>
+                <table>
+                    <tbody>
+                        <tr><td><a href="/index.html">/index.html</a></td><td><button class="btn sm secondary" onclick="runInto('static-result','GET','/index.html')">Inspect</button></td></tr>
+                        <tr><td><a href="/">/</a> <span class="muted small">(default index)</span></td><td><button class="btn sm secondary" onclick="runInto('static-result','GET','/')">Inspect</button></td></tr>
+                        <tr><td><a href="/test.txt">/test.txt</a></td><td><button class="btn sm secondary" onclick="runInto('static-result','GET','/test.txt')">Inspect</button></td></tr>
+                        <tr><td><a href="/data.json">/data.json</a></td><td><button class="btn sm secondary" onclick="runInto('static-result','GET','/data.json')">Inspect</button></td></tr>
+                        <tr><td><a href="/does-not-exist.html">/does-not-exist.html</a> <span class="muted small">(404)</span></td><td><button class="btn sm secondary" onclick="runInto('static-result','GET','/does-not-exist.html')">Inspect</button></td></tr>
+                    </tbody>
+                </table>
+                <div id="static-result" class="result"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer id="site-footer"></footer>
+
+    <script>
+        var form = document.getElementById("get-form");
+        var lang = document.getElementById("lang");
+
+        lang.addEventListener("change", function () { form.action = lang.value; });
+
+        function buildUrl() {
+            var params = new URLSearchParams(new FormData(form));
+            return lang.value + "?" + params.toString();
+        }
+
+        function inspectGet() {
+            runInto("get-result", "GET", buildUrl());
+        }
+    </script>
+</body>
+</html>

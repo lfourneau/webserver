@@ -239,7 +239,10 @@ void    HTTP::read_file()
     if (cgi_request == false)
         file += "/html_files";
     if (URI == "/")
+    {
         URI = "/index.html"; 
+        content_type = "text/html";
+    }
     file += URI;
     file_desc = open(file.c_str(), O_RDONLY);
     if (file_desc == -1)
@@ -347,7 +350,7 @@ void    HTTP::GETResponse(std::string const &content_file)
     << "Content-Length: " << content.size() << "\r\n\r\n" << content;
     final_content = output_message.str();
     send(this->associated_fd, final_content.c_str(), final_content.size(), 0);
-
+    std::cout << "\n\n\n\n" << final_content << std::endl;
     return;
 }
 

@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 Not Found</title>
+    <title>404 Not Found · webserv</title>
+    <link rel="icon" href="/favicon.ico">
+    <!-- Styles are inline so this page still looks right if style.css cannot be served. -->
     <style>
         body {
             margin: 0;
@@ -11,40 +13,50 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: Arial, Helvetica, sans-serif;
-            background: #f4f4f4;
-            color: #333;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+            background: #f4f7ff;
+            color: #1a2240;
             text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
         }
-        h1 {
-            font-size: 6em;
+        .box {
+            background: #ffffff;
+            border: 1px solid #d9e2f7;
+            border-radius: 16px;
+            padding: 48px 40px;
+            max-width: 460px;
+            width: 100%;
+            box-shadow: 0 2px 12px rgba(24, 70, 196, 0.08);
+        }
+        .code {
+            font-size: 5.5rem;
+            font-weight: 800;
             margin: 0;
-            color: #c0392b;
+            line-height: 1;
+            color: #1e5eff;
         }
-        h2 {
-            margin: 0.2em 0 0.8em;
-            font-weight: normal;
-        }
+        h1 { margin: 12px 0 8px; font-size: 1.4rem; color: #0b2a6f; }
+        p { color: #5b6585; margin: 0 0 24px; }
         a {
-            color: #2c3e50;
+            display: inline-block;
+            background: #1e5eff;
+            color: #ffffff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
         }
-        hr {
-            border: none;
-            border-top: 1px solid #ccc;
-            margin: 1.5em 0 0.5em;
-        }
-        small {
-            color: #888;
-        }
+        a:hover { background: #1846c4; }
+        small { display: block; margin-top: 28px; color: #8a93ad; }
     </style>
 </head>
 <body>
-    <div>
-        <h1>404</h1>
-        <h2>Not Found</h2>
-        <p>La ressource demandée n'existe pas sur ce serveur.</p>
-        <p><a href="/">Retour à l'accueil</a></p>
-        <hr>
+    <div class="box">
+        <p class="code">404</p>
+        <h1>Not Found</h1>
+        <p>The page you asked for does not exist on this server.</p>
+        <a href="/">Back to home</a>
         <small>webserv</small>
     </div>
 </body>

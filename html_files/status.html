@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status codes · webserv</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js"></script>
+</head>
+<body>
+    <header id="site-header"></header>
+
+    <main>
+        <h1 class="page-title">Status codes</h1>
+        <p class="page-intro">Each card sends one request built to get a specific status code back.
+           Run them one by one, or all at once, and compare what the server returned with what was
+           expected. Error responses should come with the page built by
+           <code>/cgi-bin/error_page.py</code>.</p>
+
+        <div class="card section">
+            <div class="row" style="align-items: center;">
+                <div>
+                    <h2 style="margin: 0;">Scoreboard</h2>
+                    <p id="score" class="muted small" style="margin: 4px 0 0;">Not run yet.</p>
+                </div>
+                <div class="btn-group" style="justify-content: flex-end;">
+                    <button class="btn" style="margin: 0;" onclick="runAll()">Run all (skips slow.py)</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tests" class="grid section"></div>
+
+        <div class="card section">
+            <h2>Last response</h2>
+            <div id="last-result" class="result"></div>
+            <p id="last-empty" class="muted small">Run a test to see the full response here.</p>
+        </div>
+
+        <div class="card section">
+            <h2>Error page preview</h2>
+            <p class="muted small">How each error page looks, straight from the CGI script.</p>
+            <div class="btn-group" id="error-buttons"></div>
+            <iframe id="error-preview" class="preview" title="Error page preview" style="min-height: 360px;"></iframe>
+        </div>
+    </main>
+
+    <footer id="site-footer"></footer>
+
+    <script>
+        // Big body for the 413 test (about 5 MB, above a typical client_max_body_size).
+        function bigBody() { return "x".repeat(5 * 1024 * 1024); }
+
+        var TESTS = [
+            { expect: [200], method: "GET", url: "/", title: "Home page",
+              why: "The default index file exists." },
+            { expect: [200], method: "GET", url: "/cgi-bin/hello.py?name=test", title: "CGI success",
+              why: "A working script returns its output." },
+            { expect: [201, 200], method: "POST", url: "/upload", title: "Upload a file",
+              why: "A new file is created in upload/.", body: function () {
+                  var d = new FormData();
+                  d.append("file", new Blob(["created by the status page\n"], { type: "text/plain" }), "status_test.txt");
+                  return d;
+              } },
+            { expect: [204, 200], method: "DELETE", url: "/upload/status_test.txt", title: "Delete a file",
+              why: "Removes the file uploaded by the previous test." },
+            { expect: [404], method: "GET", url: "/this/page/does/not/exist.html", title: "Missing file",
+              why: "No file at this path." },
+            { expect: [404], method: "DELETE", url: "/upload/never_existed.txt", title: "Delete a missing file",
+              why: "Nothing to delete." },
+            { expect: [403, 405], method: "DELETE", url: "/index.html", title: "Delete outside upload/",
+              why: "Only files in upload/ may be removed." },
+            { expect: [405, 501], method: "PUT", url: "/index.html", title: "Unsupported method",
+              why: "PUT is not one of GET, POST, DELETE.", body: function () { return "data"; } },
+            { expect: [405, 501], method: "PATCH", url: "/index.html", title: "Unknown method",
+              why: "PATCH is not supported either." },
+            { expect: [413], method: "POST", url: "/upload", title: "Body too large",
+              why: "A 5 MB body, above the size limit.", body: bigBody },
+            { expect: [414, 400], method: "GET", url: "/" + "a".repeat(9000), title: "URI too long",
+              why: "A 9000 character path.", label: "/aaaa... (9000 chars)" },
+            { expect: [500, 502], method: "GET", url: "/cgi-bin/crash.py", title: "Script crashes",
+              why: "The CGI script raises an exception." },
+            { expect: [504], method: "GET", url: "/cgi-bin/slow.py", title: "Script too slow",
+              why: "Sleeps 10 s. Blocks the server if there is no timeout.", slow: true }
+        ];
+
+        var results = {};
+
+        function renderTests() {
+            document.getElementById("tests").innerHTML = TESTS.map(function (t, i) {
+                var label = t.label || t.url;
+                return '<div class="card test-card">' +
+                    "<h3>" + escapeHtml(t.title) + "</h3>" +
+                    "<div>" + methodBadge(t.method) + " <code>" + escapeHtml(label) + "</code></div>" +
+                    '<div class="expect">' + escapeHtml(t.why) + "<br>Expected: " +
+                    t.expect.map(function (c) { return statusBadge(c); }).join(" or ") + "</div>" +
+                    '<div class="got" id="got-' + i + '"></div>' +
+                    '<button class="btn sm' + (t.slow ? " danger" : " secondary") + '" onclick="runTest(' + i + ')">Run</button>' +
+                    "</div>";
+            }).join("");
+        }
+
+        function runTest(i) {
+            var t = TESTS[i];
+            var got = document.getElementById("got-" + i);
+            got.innerHTML = '<span class="muted">sending...</span>';
+            var body = t.body ? t.body() : undefined;
+            return sendRequest(t.method, t.url, body).then(function (r) {
+                var pass = t.expect.indexOf(r.status) !== -1;
+                results[i] = pass;
+                got.innerHTML = "Got: " + statusBadge(r.status, r.statusText) +
+                    (pass ? ' <strong style="color: var(--ok)">&#10003;</strong>'
+                          : ' <strong style="color: var(--err)">&#10007;</strong>');
+                document.getElementById("last-empty").style.display = "none";
+                showResult(document.getElementById("last-result"), t.method, t.label || t.url, r);
+                updateScore();
+            });
+        }
+
+        function updateScore() {
+            var keys = Object.keys(results);
+            var passed = keys.filter(function (k) { return results[k]; }).length;
+            document.getElementById("score").textContent =
+                passed + " / " + keys.length + " tests returned the expected status.";
+        }
+
+        // Run sequentially so upload runs before delete.
+        function runAll() {
+            var chain = Promise.resolve();
+            TESTS.forEach(function (t, i) {
+                if (t.slow) return;
+                chain = chain.then(function () { return runTest(i); });
+            });
+        }
+
+        var ERROR_CODES = [400, 403, 404, 405, 413, 500, 501, 504];
+        document.getElementById("error-buttons").innerHTML = ERROR_CODES.map(function (c) {
+            return '<button class="btn sm secondary" onclick="previewError(' + c + ')">' + c + "</button>";
+        }).join("");
+        function previewError(code) {
+            document.getElementById("error-preview").src = "/cgi-bin/error_page.py?code=" + code;
+        }
+
+        renderTests();
+        previewError(404);
+    </script>
+</body>
+</html>

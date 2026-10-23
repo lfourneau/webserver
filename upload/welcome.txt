@@ -1,0 +1,2 @@
+Welcome to the upload folder of webserv.
+Files uploaded through the POST page land here.

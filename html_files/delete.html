@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DELETE · webserv</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js"></script>
+</head>
+<body>
+    <header id="site-header"></header>
+
+    <main>
+        <h1 class="page-title">DELETE requests</h1>
+        <p class="page-intro"><code>DELETE</code> asks the server to remove a resource. HTML forms
+           can only send <code>GET</code> and <code>POST</code>, so these buttons send the request
+           with JavaScript (<code>fetch</code>).</p>
+
+        <div class="card section">
+            <div class="row" style="align-items: center; margin-bottom: 8px;">
+                <h2 style="margin: 0;">Files in <code>upload/</code></h2>
+                <div class="btn-group" style="justify-content: flex-end;">
+                    <button class="btn secondary sm" onclick="loadFiles()">Refresh</button>
+                    <a class="btn sm" href="/post.html">Upload a file</a>
+                </div>
+            </div>
+            <p class="muted small">This list comes from the CGI script <code>/cgi-bin/list_uploads.py</code>.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th></th></tr></thead>
+                    <tbody id="file-list">
+                        <tr><td colspan="4" class="muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="delete-result" class="result"></div>
+        </div>
+
+        <div class="card section">
+            <h2><span class="badge delete">DELETE</span> Any path</h2>
+            <p class="muted small">Try deleting a file that does not exist (<code>404</code>), or one outside
+               <code>/upload/</code> that the server should refuse (<code>403</code>).</p>
+            <form id="manual-form" class="row">
+                <div>
+                    <label for="path">Path</label>
+                    <input type="text" id="path" value="/upload/delete_me.txt">
+                </div>
+                <button class="btn danger" type="submit">Send DELETE</button>
+            </form>
+            <div class="btn-group small">
+                <button class="btn sm secondary" onclick="setPath('/upload/does_not_exist.txt')">/upload/does_not_exist.txt</button>
+                <button class="btn sm secondary" onclick="setPath('/index.html')">/index.html</button>
+                <button class="btn sm secondary" onclick="setPath('/upload/')">/upload/ (the folder)</button>
+            </div>
+            <div id="manual-result" class="result" style="margin-top: 14px;"></div>
+        </div>
+    </main>
+
+    <footer id="site-footer"></footer>
+
+    <script>
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + " B";
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+            return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+        }
+
+        function loadFiles() {
+            var list = document.getElementById("file-list");
+            list.innerHTML = '<tr><td colspan="4" class="muted">Loading...</td></tr>';
+            sendRequest("GET", "/cgi-bin/list_uploads.py").then(function (r) {
+                var files;
+                try {
+                    files = JSON.parse(r.body).files;
+                } catch (e) {
+                    list.innerHTML = '<tr><td colspan="4" class="muted">Could not read the file list ' +
+                        statusBadge(r.status, r.statusText) + "</td></tr>";
+                    return;
+                }
+                if (!files.length) {
+                    list.innerHTML = '<tr><td colspan="4" class="muted">The upload folder is empty.</td></tr>';
+                    return;
+                }
+                list.innerHTML = files.map(function (f) {
+                    var url = "/upload/" + encodeURIComponent(f.name);
+                    return "<tr><td class=\"mono\">" + escapeHtml(f.name) + "</td>" +
+                        "<td>" + formatSize(f.size) + "</td>" +
+                        "<td class=\"muted small\">" + escapeHtml(f.modified) + "</td>" +
+                        "<td style=\"text-align:right\"><button class=\"btn sm danger\" data-url=\"" +
+                        escapeHtml(url) + "\">Delete</button></td></tr>";
+                }).join("");
+            });
+        }
+
+        document.getElementById("file-list").addEventListener("click", function (e) {
+            var url = e.target.getAttribute("data-url");
+            if (!url) return;
+            if (!confirm("Delete " + decodeURIComponent(url) + "?")) return;
+            runInto("delete-result", "DELETE", url).then(loadFiles);
+        });
+
+        function setPath(p) { document.getElementById("path").value = p; }
+
+        document.getElementById("manual-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            runInto("manual-result", "DELETE", document.getElementById("path").value).then(loadFiles);
+        });
+
+        loadFiles();
+    </script>
+</body>
+</html>

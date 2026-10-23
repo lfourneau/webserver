@@ -1,0 +1,2 @@
+This file exists so you can test the DELETE method.
+Delete it from the DELETE page.
