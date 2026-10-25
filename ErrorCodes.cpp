@@ -14,6 +14,7 @@ ErrorCodes::ErrorCodes(ErrorCodes const &other) : ErrorCodes(other.getcode())
 
 ErrorCodes &ErrorCodes::operator=(ErrorCodes const &other)
 {
+    (void)other;
     return (*this);
 }
 
@@ -21,12 +22,12 @@ ErrorCodes::~ErrorCodes()
 {
 }
 
-std::string const ErrorCodes::getmessage() const
+std::string ErrorCodes::getmessage() const
 {
     return (this->message);
 }
 
-int const ErrorCodes::getcode() const 
+int ErrorCodes::getcode() const 
 {
     return (this->_code);
 }
@@ -55,7 +56,7 @@ std::string const ErrorCodes::find_associated_value(int const code)
     "Invalid error code"};
 
     int i = 0;
-    while (codes && codes[i] != 999)
+    while (codes[i] != 999)
     {
         if (codes[i] == code)
         {

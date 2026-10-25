@@ -30,20 +30,6 @@ class HTTP
     int    append_content(const char *content, unsigned int total_read);
     void get_value_host();
     int     get_client_fd();
-    class   ErrorInHeader : public std::exception
-    {
-        virtual const char *what() const throw()
-        {
-            return "Error in header sent";
-        }
-    };
-    class   FileNotFound: public std::exception
-    {
-        virtual const char *what() const throw()
-        {
-            return "404 Not Found";
-        }
-    };
     protected:
     int     associated_fd;
     std::string request_content;
@@ -60,6 +46,8 @@ class HTTP
     std::string body;
     bool    cgi_request;
     int code;
+    std::string error_message;
+
     std::map<std::string, std::string> header_lines;
     
     //helper functions
@@ -75,15 +63,19 @@ class HTTP
 
     //GET content methods
     void    read_file();
-    void    read_error_file(const char *error);
     void    read_and_store_file(int fd);
 
     //CGI requests
     bool    check_cgi_request();
-    std::string const   output_first_line();
 
     //send to browser methods
-    std::string    cgi_content(void);
+    void    cgi_content(void);
+
+    //build error
+    void    build_error(int error_code, std::string message);
+
+    //send response
+    void    encapsulate_response();
 };
 
 # include "find_structure.tpp"

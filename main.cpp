@@ -12,16 +12,16 @@ Steps in the creation of a webserver
 6) While receiving the message echo its content
 7) Close  the socket*/
 
-//int main(void)
-//{
-//    SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "5400");
-//
-//    while (1)
-//    {
-//        ;
-//    }
-//    return (0);
-//}
+int main(void)
+{
+    SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "5400");
+
+    while (1)
+    {
+        ;
+    }
+    return (0);
+}
 
 /*
 int main(void)
@@ -34,10 +34,10 @@ int main(void)
 }
 */
 
-int main(int ac, char **av)
-{
-    ErrorCodes  pb(atoi(av[1]));
-
-    std::cout << "Error code: " << pb.getcode() << " String value: " << pb.getmessage() << std::endl;
-    return (0);
-}
+//int main(int ac, char **av)
+//{
+//    ErrorCodes  pb(atoi(av[1]));
+//
+//    std::cout << "Error code: " << pb.getcode() << " String value: " << pb.getmessage() << std::endl;
+//    return (0);
+//}

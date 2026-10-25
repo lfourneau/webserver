@@ -1,10 +1,11 @@
 #include "HTTP.hpp"
 #include "CGI.hpp"
 #include "Post.hpp"
+#include "ErrorCodes.hpp"
 
 //Les constructeurs
 
-HTTP::HTTP(int fd) : associated_fd(fd), pwd(PATH_FILES_DIRECTORY), cgi_request(false), code(200)
+HTTP::HTTP(int fd) : associated_fd(fd), pwd(PATH_FILES_DIRECTORY), cgi_request(false), code(200), error_message("OK")
 {
 }
 
@@ -26,6 +27,7 @@ HTTP::HTTP(const HTTP &other)
     this->cgi_request = other.cgi_request;
     this->code = other.code;
     this->header_lines = other.header_lines;
+    this->error_message = other.error_message;
 }
 
 HTTP    &HTTP::operator=(const HTTP &other)
@@ -48,6 +50,7 @@ HTTP    &HTTP::operator=(const HTTP &other)
         this->cgi_request = other.cgi_request;
         this->code = other.code;
         this->header_lines = other.header_lines;
+        this->error_message = other.error_message;
     }
     return (*this);
 }
@@ -120,13 +123,32 @@ void HTTP::analyse_buffer()
         determine_extension();
         perform_request();
     }
-    catch(const std::exception& e)
+    catch(const ErrorCodes& e)
     {
-        read_error_file(e.what());
+        build_error(e.getcode(), e.getmessage());
         cgi_content();
     }
     encapsulate_response();
     close(associated_fd);
+}
+
+void    HTTP::build_error(int error_code, std::string meaning)
+{
+    //on doit modifier le contenu de la classe HTTP pcq elle peut crash a n'importe quel moment
+    this->request_method = "POST";
+    this->URI = "/cgi-bin/error_page.py";
+    this->protocol_version = "HTTP/1.0";
+    this->pwd = "/home/lfournea/Documents/webserver/cgi-bin/error_page.py";
+    this->content = TransformToString() << "code=" << error_code;
+    this->host = "localhost";
+    this->host_port = "5400";
+    this->file_type = "text/html";
+    this->query_string = "";
+    this->content_type = "text/html";
+    this->body = "";
+    this->cgi_request = true;
+    this->code = error_code;
+    this->error_message = meaning;
 }
 
 void    HTTP::perform_request()
@@ -144,21 +166,14 @@ void    HTTP::perform_request()
     {
         Post post_file(*this);
 
-        try
-        {
-            post_file.request_post();
-        }
-        catch(const std::exception& e)
-        {
-            std::cerr << e.what() << '\n';
-        }
+        post_file.request_post();
     }
     else if (request_method == "DELETE")
     {
         ;
     }
-    //else
-        //renvoyer requete invalide
+    else 
+        throw(ErrorCodes(405));
 }
 
 void HTTP::parse_initial_response_line(std::stringstream &flux)
@@ -167,7 +182,7 @@ void HTTP::parse_initial_response_line(std::stringstream &flux)
 
     if (!getline(flux, first_line))
     {
-        std::cout << "The has been an error getting the line";
+            throw(ErrorCodes(400));
     }
     
     std::istringstream input(first_line);
@@ -176,7 +191,7 @@ void HTTP::parse_initial_response_line(std::stringstream &flux)
     // la synthaxe renvoie vrai si on a pu lire et faux dans le cas contraire
     if (!(input >> request_method >> URI >> protocol_version) || (input >> extra_values))
     {
-        std::cout << "The header is not valid" << std::endl;
+        throw(ErrorCodes(400));
     }
     check_cgi_request();
 }
@@ -212,7 +227,7 @@ void HTTP::parse_header_lines(std::stringstream &flux)
         getline(line_cut, value);
         value = HelperFunctions::trim(value, "\r ");
         if (key.empty() == true || value.empty() == true)
-            throw(ErrorInHeader());
+            throw(ErrorCodes(400));
         this->header_lines[key] =  value;
     }
 }
@@ -255,7 +270,7 @@ void    HTTP::read_file()
     if (file_desc == -1)
     {
         code = 404; 
-        throw(FileNotFound());
+        throw(ErrorCodes(404));
     }
     pwd = file;
     read_and_store_file(file_desc);
@@ -307,19 +322,6 @@ void    HTTP::determine_extension()
     
 }
 
-void    HTTP::read_error_file(const char *error) 
-{
-    int fd;
-    (void)error;
-
-    this->pwd = "";
-    this->pwd = TransformToString() << PATH_FILES_DIRECTORY << "/html_files/error_page.html";
-    content_type = "text/html";
-    fd = open(this->pwd.c_str(), O_RDONLY);
-        //ici peut etre verifier que ca ne renvoie pas -1
-    read_and_store_file(fd);
-}
-
 void    HTTP::read_and_store_file(int fd)
 {
     char    buffer[4096];
@@ -341,7 +343,7 @@ void    HTTP::read_and_store_file(int fd)
 
 //on utilise le contenu de cette string pour constuire une reponse 
 
-std::string    HTTP::cgi_content(void)
+void    HTTP::cgi_content(void)
 {
     std::ostringstream output_message;
     std::string final_content;
@@ -352,28 +354,18 @@ std::string    HTTP::cgi_content(void)
 
         content = send_to_cgi.get_output();
     }
-
-    //output_message << output_first_line() << "Content-Type:" << content_type << "\r\n" \
-    //<< "Content-Length: " << content.size() << "\r\n\r\n" << content;
-    //final_content = output_message.str();
-    //send(this->associated_fd, final_content.c_str(), final_content.size(), 0);
-    //std::cout << "\n\n\n\n" << final_content << std::endl;
     return;
 }
 
-std::string const HTTP::output_first_line()
+void    HTTP::encapsulate_response()
 {
-    int supported_codes[] = {200, 404};
-    std::string associated_messages[] = {"OK", "Not Found"};
-    std::ostringstream exit_string;
+    std::ostringstream output_message;
+    std::string final_message;
 
-    exit_string << "HTTP/1.0 "  << code << " ";
-
-    for (unsigned long i = 0; i < sizeof(supported_codes) / sizeof(supported_codes[0]); i++)
-    {
-        if (code == supported_codes[i])
-            exit_string << associated_messages[i];
-    }
-    exit_string << "\r\n";
-    return (exit_string.str());
+    output_message << "HTTP/1.0 " << code << " " << this->error_message << "\r\n" \
+    << "Content-Type: " << content_type << "\r\n" << "Content-Length: " << content.size() << "\r\n\r\n" \
+    << content;
+    final_message = output_message.str();
+    send(this->associated_fd, final_message.c_str(), final_message.size(), 0);
+    return ;
 }
