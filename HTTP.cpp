@@ -2,6 +2,7 @@
 #include "CGI.hpp"
 #include "Post.hpp"
 #include "ErrorCodes.hpp"
+#include "Delete.hpp"
 
 //Les constructeurs
 
@@ -173,7 +174,9 @@ void    HTTP::perform_request()
     }
     else if (request_method == "DELETE")
     {
-        ;
+        Delete delete_file(*this);
+
+        delete_file.request_delete();
     }
     else 
         throw(ErrorCodes(405));
