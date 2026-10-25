@@ -160,7 +160,10 @@ void    HTTP::perform_request()
         if (cgi_request == false)
             read_file();
         else
+        {
+            pwd += URI;
             cgi_content();
+        }
     }
     else if (request_method == "POST")
     {

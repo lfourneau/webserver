@@ -28,6 +28,7 @@ void Post::request_post()
     std::stringstream   read_body(body.substr(end_header + 4, std::string::npos));
 
     get_post_headers(read_file);
+    get_form_data();
     get_file_content(read_body);
     if (URI == "/upload")
     {
@@ -40,8 +41,10 @@ void Post::request_post()
 void    Post::save_to_upload()
 {
     int fd;
+    std::string filename;
 
-    fd = open("./upload/test.txt", O_RDWR |  O_CREAT | O_TRUNC, 0644);
+    filename = TransformToString() << "./upload/" << form_data["filename"];
+    fd = open(filename.c_str(), O_RDWR |  O_CREAT | O_TRUNC, 0644);
     write(fd, file_body.c_str(), file_body.size());
     close(fd);
 }
@@ -83,6 +86,30 @@ void    Post::get_post_headers(std::stringstream &flux)
         key = line.substr(0, del);
         value = line.substr(del + 1, line.length());
         body_headers[key] = value;
+    }
+}
+
+void    Post::get_form_data()
+{
+    std::istringstream content(body_headers["Content-Disposition"]);
+    std::string extract_info;
+
+    content >> extract_info;
+    extract_info = HelperFunctions().trim(extract_info, ";");
+    if (extract_info != "form-data")
+        return ;
+    while (content >> extract_info)
+    {
+        size_t colon_location; 
+        std::string key;
+        std::string value;
+
+        colon_location = extract_info.find("=");
+        key = extract_info.substr(0, colon_location);
+        value =  extract_info.substr(colon_location + 1, extract_info.length());
+        key = HelperFunctions().trim(key, "\";");
+        value = HelperFunctions().trim(value, "\";");
+        form_data[key] = value ;
     }
 }
 
