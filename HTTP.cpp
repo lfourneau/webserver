@@ -104,7 +104,11 @@ int HTTP::append_content(const char *append_info, unsigned int total_read)
 
 void HTTP::analyse_buffer()
 {
+    //dans cette commande il faudrait peut etre 
+    //recuperer le contenu de ma requete puis ensuite proceder a une
+    //encapsulation
     std::stringstream flux;
+    std::string server_response;
 
     flux << this->request_content;
     try
@@ -114,24 +118,27 @@ void HTTP::analyse_buffer()
         http_body(flux);
         get_value_host();
         determine_extension();
-        determine_method();
+        perform_request();
     }
     catch(const std::exception& e)
     {
         read_error_file(e.what());
-        GETResponse(content);
+        cgi_content();
     }
+    encapsulate_response();
     close(associated_fd);
 }
 
-void    HTTP::determine_method()
+void    HTTP::perform_request()
 {
     //il faudra creer des strucutes qui autorisent qqn d'externe a lire ecrire ou executer 
     //un document
     if (request_method == "GET" || (request_method == "POST" && cgi_request == true))
     {
-        read_file();
-        GETResponse(content);
+        if (cgi_request == false)
+            read_file();
+        else
+            cgi_content();
     }
     else if (request_method == "POST")
     {
@@ -334,11 +341,10 @@ void    HTTP::read_and_store_file(int fd)
 
 //on utilise le contenu de cette string pour constuire une reponse 
 
-void    HTTP::GETResponse(std::string const &content_file)
+std::string    HTTP::cgi_content(void)
 {
     std::ostringstream output_message;
     std::string final_content;
-    (void) content_file;
 
     if (cgi_request)
     {
@@ -346,11 +352,12 @@ void    HTTP::GETResponse(std::string const &content_file)
 
         content = send_to_cgi.get_output();
     }
-    output_message << output_first_line() << "Content-Type:" << content_type << "\r\n" \
-    << "Content-Length: " << content.size() << "\r\n\r\n" << content;
-    final_content = output_message.str();
-    send(this->associated_fd, final_content.c_str(), final_content.size(), 0);
-    std::cout << "\n\n\n\n" << final_content << std::endl;
+
+    //output_message << output_first_line() << "Content-Type:" << content_type << "\r\n" \
+    //<< "Content-Length: " << content.size() << "\r\n\r\n" << content;
+    //final_content = output_message.str();
+    //send(this->associated_fd, final_content.c_str(), final_content.size(), 0);
+    //std::cout << "\n\n\n\n" << final_content << std::endl;
     return;
 }
 

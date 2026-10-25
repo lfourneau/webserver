@@ -71,7 +71,7 @@ class HTTP
     void    add_to_previous_pair(std::string &content);
     void    http_body(std::stringstream &flux);
     void    determine_extension();
-    void    determine_method();
+    void    perform_request();
 
     //GET content methods
     void    read_file();
@@ -83,7 +83,7 @@ class HTTP
     std::string const   output_first_line();
 
     //send to browser methods
-    void    GETResponse(std::string const &other);
+    std::string    cgi_content(void);
 };
 
 # include "find_structure.tpp"

@@ -40,11 +40,8 @@ void Post::request_post()
 void    Post::save_to_upload()
 {
     int fd;
-    int i = 0;
-    
+
     fd = open("./upload/test.txt", O_RDWR |  O_CREAT | O_TRUNC, 0644);
-    while (file_body[i] != '\t' && file_body[i] != '\r' && file_body[i] != '\n') 
-        i++;
     write(fd, file_body.c_str(), file_body.size());
     close(fd);
 }
