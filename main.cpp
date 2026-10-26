@@ -1,7 +1,7 @@
 #include "HTTP.hpp"
 #include "SetUpSocket.hpp"
 #include "ErrorCodes.hpp"
-#include "Server.hpp"
+#include "ServerConfig.hpp"
 
 /*
 Steps in the creation of a webserver
@@ -48,5 +48,5 @@ int main(int ac, char **av)
     (void)ac;
     std::string value(av[1]);
 
-    Server ressource(value);
+    ServerConfig ressource(value);
 }

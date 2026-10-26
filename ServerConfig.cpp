@@ -53,7 +53,7 @@ void ServerConfig::tokenize(std::string const &flux)
 {
     std::string current_token;
 
-    for (long unsigned int i = 0; i < flux.size(); i++;)
+    for (long unsigned int i = 0; i < flux.size(); i++)
     {
         unsigned char current_char = static_cast<unsigned char>(flux[i]);
 

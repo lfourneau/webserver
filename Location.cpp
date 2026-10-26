@@ -2,6 +2,7 @@
 
 Location::Location(IT &it, IT end)
 {
+    parse_location_block(it, end);
 }
 
 Location::Location(Location const &other)
@@ -148,9 +149,4 @@ void    Location::parse_cgi_exec(IT &it, IT end)
     else
         this->program_exec_cgi = "usr/bin/python3";
     ++it;
-}
-
-void Location::parse_location(std::vector<std::string>::iterator &it, std::vector<std::string>::iterator end)
-{
-    
 }

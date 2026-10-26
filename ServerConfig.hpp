@@ -8,7 +8,7 @@
 # include <sstream>
 # include <iostream>
 # include <vector>
-# include "Sever.hpp"
+# include "Server.hpp"
 # include "Location.hpp"
 
 class ServerConfig

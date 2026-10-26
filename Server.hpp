@@ -10,26 +10,39 @@
 class Server
 {
     public:
-    Server(std::vector<std::string>::iterator &it, std::vector<std::string>::iterator end);
+    typedef std::vector<std::string>::iterator IT;
+    Server(IT &it, IT end);
     Server(Server const &other);
     Server &operator=(Server const &other);
     ~Server();
-    class InvalidTokenAfterServer : public std::exception
+    class ErrorServerBlock : public std::exception
     {
         public:
+        ErrorServerBlock(std::string content) : val(content) {};
+        ~ErrorServerBlock() {};
         virtual const char * what() const throw()
         {
             return ("Invalid token after server");
         }
+        private:
+        std::string const &val;
     };
     private:
+    std::string server_repo;
     std::vector<int> open_ports;
     std::vector<std::string> server_names;
-    std::map<std::string, std::string> error_pages;
+    std::map<int, std::string> error_files;
     int max_body_size;
     std::vector<Location> location_blocks;
 
-    void    Server::retrieve_info(std::vector<std::string>::iterator &it, std::vector<std::string>::iterator end);
+    void    retrieve_info(IT &it, IT end);
+    void    server_name(IT &it, IT end);
+    void    root(IT &it, IT end);
+    void    error_pages(IT &it, IT end);
+    void    client_size(IT &it, IT end);
+    void    listen(IT &it, IT end);
+    void    location(IT &it, IT end);
+
 };
 
 #endif
