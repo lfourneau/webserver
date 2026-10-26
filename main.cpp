@@ -1,6 +1,7 @@
 #include "HTTP.hpp"
 #include "SetUpSocket.hpp"
 #include "ErrorCodes.hpp"
+#include "Server.hpp"
 
 /*
 Steps in the creation of a webserver
@@ -12,16 +13,16 @@ Steps in the creation of a webserver
 6) While receiving the message echo its content
 7) Close  the socket*/
 
-int main(void)
-{
-    SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "5400");
-
-    while (1)
-    {
-        ;
-    }
-    return (0);
-}
+//int main(void)
+//{
+//    SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "5400");
+//
+//    while (1)
+//    {
+//        ;
+//    }
+//    return (0);
+//}
 
 /*
 int main(void)
@@ -41,3 +42,11 @@ int main(void)
 //    std::cout << "Error code: " << pb.getcode() << " String value: " << pb.getmessage() << std::endl;
 //    return (0);
 //}
+
+int main(int ac, char **av)
+{
+    (void)ac;
+    std::string value(av[1]);
+
+    Server ressource(value);
+}
