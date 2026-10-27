@@ -12,11 +12,7 @@ type(SOCK_STREAM), protocol(0), return_getaddr_info(NULL), config(config)
 
     try
     {
-        get_addr();
-        socket_creation();
-        set_sock_non_crash();
-        bind_socket();
-        listen_socket();
+        for_each_block();
         monitor_connections();
     }
     catch(const std::exception& e)
@@ -41,57 +37,104 @@ SetUpSocket &SetUpSocket::operator=(SetUpSocket const &other)
 SetUpSocket::~SetUpSocket()
 {
     if (this->return_getaddr_info != NULL)
-        freeaddrinfo(this->return_getaddr_info);
-}
-
-void    SetUpSocket::get_addr()
-{
-    std::vector<Server>::const_iterator it;
-    std::vector<Server>::const_iterator end;
-    struct addrinfo new_addrinfo;
-
-    for (it = this->config->get_server().begin(); it != end; it++)
     {
-        while (*it)
-        if (getaddrinfo(NULL, port.c_str(), &this->parameter, &this->return_getaddr_info))
-            throw(SocketSetUpFail("getaddrinfo has failed"));
-        
+        std::vector<struct addrinfo *>::iterator it = structures_addr_info.begin();
+
+        for (; it != structures_addr_info.end(); ++it)
+        {
+            freeaddrinfo(this->return_getaddr_info);
+        }
     }
 }
 
-void    SetUpSocket::socket_creation()
+void    SetUpSocket::for_each_block()
+{
+    std::vector<t_server>::const_iterator it;
+
+    for (it = this->config->get_server_config().servers.begin(); \
+    it != this->config->get_server_config().servers.end() ; it++)
+    {
+        get_addr(*it);
+
+    }
+}
+
+void    SetUpSocket::get_addr(t_server const &serv)
+{
+    std::vector<int>::const_iterator it;
+    std::vector<int>::const_iterator end = serv.open_ports.end();
+
+    for (it = serv.open_ports.begin(); it != end; it++)
+    {
+        struct addrinfo *new_addrinfo = NULL;
+        std::ostringstream to_string;
+        std::string portimao;
+        
+        to_string << *it;
+        portimao = to_string.str();
+        if (getaddrinfo(NULL, to_string.str().c_str(), &this->parameter,\
+         &new_addrinfo))
+            throw(SocketSetUpFail("getaddrinfo has failed"));
+        structures_addr_info.push_back(new_addrinfo);
+
+        struct addrinfo *next = new_addrinfo->ai_next;
+        while (true)
+        {
+            socket_creation(new_addrinfo);
+            if (next == NULL)
+                break;
+            new_addrinfo = next;
+            next = new_addrinfo->ai_next;
+        }
+    }
+}
+
+void    SetUpSocket::socket_creation(struct addrinfo *info)
 {
     int new_listen_fd;
 
-    new_listen_fd = socket(this->domain, this->type, 0);
+    new_listen_fd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if (new_listen_fd == -1)
         throw (SocketSetUpFail("socket creation has failed"));
+    set_sock_non_crash(new_listen_fd);
+    bind_socket(new_listen_fd, info);
+    listen_socket(new_listen_fd);
     fds_listen.insert(new_listen_fd);
 }
 
-void    SetUpSocket::set_sock_non_crash()
+void    SetUpSocket::set_sock_non_crash(int &file_desc)
 {
     int option = true;
 
-    if (setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
+    if (setsockopt(file_desc, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
     {
-        close(fd_socket);
+        close(file_desc);
         throw(SocketSetUpFail("sockoption has failed"));
     }
 }
 
-void    SetUpSocket::bind_socket()
+void    SetUpSocket::bind_socket(int &file_desc, struct addrinfo *info)
 {
-    if (bind(fd_socket, return_getaddr_info->ai_addr, return_getaddr_info->ai_addrlen))
+    if (bind(file_desc, info->ai_addr, info->ai_addrlen))
         throw(SocketSetUpFail("binding has failed"));
 }
 
-void    SetUpSocket::listen_socket()
+void    SetUpSocket::listen_socket(int &file_desc)
 {
     //somaxconn defines the maximum concurrent connections the server
     //can receive
-    if (listen(fd_socket, SOMAXCONN))
+    if (listen(file_desc, SOMAXCONN))
         throw(SocketSetUpFail("listening has failed"));
+}
+
+void    SetUpSocket::set_connections_fd_set(fd_set &keep)
+{
+    std::set<int>::const_iterator it = fds_listen.begin();
+
+    for (; it != fds_listen.end(); ++it)
+    {
+        FD_SET(*it, &keep);
+    }
 }
 
 void    SetUpSocket::monitor_connections()
@@ -100,10 +143,10 @@ void    SetUpSocket::monitor_connections()
     int     return_select; 
     int     fd_received;
     char    buffer[4096];
-    std::vector<HTTP>   list_files = {};
+    std::vector<HTTP>   list_files;
 
     FD_ZERO(&keep);
-    FD_SET(fd_socket, &keep);
+    set_connections_fd_set(keep);
 
     while (1)
     {
@@ -121,9 +164,9 @@ void    SetUpSocket::monitor_connections()
                 {
                     if (!FD_ISSET(i, &read))
                         continue;
-                    if (i == fd_socket)
+                    if (fds_listen.count(i))
                     {
-                        fd_received = accept(fd_socket, NULL, NULL);
+                        fd_received = accept(i, NULL, NULL);
                         FD_SET(fd_received, &keep);
 
                         HTTP    new_connection(fd_received);

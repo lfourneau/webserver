@@ -14,7 +14,7 @@
 typedef struct s_serverconfig
 {
     std::vector<std::string> tokens;
-    std::vector<Server> servers;
+    std::vector<t_server> servers;
 } t_serverconfig;
 
 class ServerConfig
@@ -24,7 +24,7 @@ class ServerConfig
     ServerConfig(ServerConfig const &other);
     ServerConfig &operator=(ServerConfig const &other);
     ~ServerConfig(); 
-    t_serverconfig const get_server_config() const;
+    t_serverconfig const &get_server_config() const;
 
     class FileOpenFail : public std::exception
     {

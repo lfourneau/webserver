@@ -44,7 +44,7 @@ void    Server::retrieve_info(std::vector<std::string>::iterator &it, std::vecto
                 break;
             }
             if (i == 5)
-                throw(ErrorServerBlock("Invlid method in server block"));
+                throw(ErrorServerBlock("Invalid method in server block"));
         }
     }
     if (*it != "}")
@@ -105,7 +105,7 @@ void    Server::location(IT &it, IT end)
 {
     Location    location_block(it, end);
 
-    server.location_blocks.push_back(location_block);
+    server.location_blocks.push_back(location_block.get_location());
 }
 
 t_server const & Server::get_server() const

@@ -104,14 +104,14 @@ void ServerConfig::recup_information()
 
             Server  new_server_block(it, servconfig.tokens.end());
 
-            servconfig.servers.push_back(new_server_block);
+            servconfig.servers.push_back(new_server_block.get_server());
         }
         if (it == end)
             break;
     }
 }
 
-t_serverconfig const ServerConfig::get_server_config() const
+t_serverconfig const &ServerConfig::get_server_config() const
 {
     return (this->servconfig);
 }

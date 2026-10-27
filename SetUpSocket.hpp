@@ -48,12 +48,14 @@ class SetUpSocket
         struct addrinfo *return_getaddr_info;
         ServerConfig *config;
 
-        void    socket_creation();
-        void    get_addr();
-        void    bind_socket();
-        void    listen_socket();
+        void    for_each_block();
+        void    socket_creation(struct addrinfo *structure);
+        void    get_addr(t_server const &other);
+        void    bind_socket(int &file_desc, struct addrinfo *info);
+        void    listen_socket(int &file_desc);
+        void    set_connections_fd_set(fd_set &keep);
         void    monitor_connections();
-        void    set_sock_non_crash();
+        void    set_sock_non_crash(int &file_descriptor);
 };
 
 # include "find_structure.tpp"

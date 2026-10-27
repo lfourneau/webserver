@@ -15,7 +15,7 @@ typedef struct s_server
     std::vector<std::string> server_names;
     std::map<int, std::string> error_files;
     int max_body_size;
-    std::vector<Location> location_blocks;
+    std::vector<t_location> location_blocks;
     s_server() : server_repo(), open_ports(), server_names(), \
     error_files(), max_body_size(0), location_blocks() {}; 
 } t_server;
