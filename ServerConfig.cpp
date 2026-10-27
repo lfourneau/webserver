@@ -59,7 +59,7 @@ void ServerConfig::tokenize(std::string const &flux)
 
         if (std::isspace(current_char) && current_token.empty() == false)
         {
-            tokens.push_back(current_token);
+            servconfig.tokens.push_back(current_token);
             reinitialize_string(current_token);
         }
         else if (current_char == '#')
@@ -71,10 +71,10 @@ void ServerConfig::tokenize(std::string const &flux)
         {
             if (current_token.empty() == false)
             {
-                tokens.push_back(current_token);
+                servconfig.tokens.push_back(current_token);
                 reinitialize_string(current_token);
             }
-            tokens.push_back(std::string(1, current_char));
+            servconfig.tokens.push_back(std::string(1, current_char));
         }
         else if (std::isspace(current_char) == false) 
         {
@@ -82,7 +82,7 @@ void ServerConfig::tokenize(std::string const &flux)
         }
     }
     if (current_token.empty() == false)
-        tokens.push_back(current_token);
+        servconfig.tokens.push_back(current_token);
 ;}
 
 void ServerConfig::reinitialize_string(std::string &content)
@@ -94,19 +94,24 @@ void ServerConfig::reinitialize_string(std::string &content)
 void ServerConfig::recup_information()
 {
     std::vector<std::string>::iterator it;
-    std::vector<std::string>::iterator end = tokens.end();
+    std::vector<std::string>::iterator end = servconfig.tokens.end();
 
-    for (it = tokens.begin(); it != end; ++it)
+    for (it = servconfig.tokens.begin(); it != end; ++it)
     {
         if (*it == "server")
         {
             it++;
 
-            Server  new_server_block(it, tokens.end());
+            Server  new_server_block(it, servconfig.tokens.end());
 
-            servers.push_back(new_server_block);
+            servconfig.servers.push_back(new_server_block);
         }
         if (it == end)
             break;
     }
+}
+
+t_serverconfig const ServerConfig::get_server_config() const
+{
+    return (this->servconfig);
 }

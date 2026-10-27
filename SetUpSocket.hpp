@@ -14,6 +14,7 @@
 # include <cstring>
 # include <unistd.h>
 # include <vector>
+# include <set>
 # include "HTTP.hpp"
 # include "ServerConfig.hpp"
 
@@ -37,7 +38,8 @@ class SetUpSocket
             std::string const res;
         };
         private:
-        int fd_socket;
+        std::set<int> fds_listen;
+        std::vector<struct addrinfo*> structures_addr_info;
         const int domain;
         const int type;
         const int protocol;

@@ -1,9 +1,27 @@
 #ifndef LOCATION_HPP
 # define LOCATION_HPP
 
+# include <cstring>
 # include <string>
 # include <vector>
 # include <exception>
+
+typedef struct s_location
+{
+    bool    get;
+    bool    post;
+    bool    del;
+    std::string file_directory;
+    std::string prefix;
+    std::string default_file;
+    bool    autoindex;
+    bool    cgi_pass;
+    std::string program_exec_cgi;
+
+    s_location() : get(false), post(false), del(false), file_directory(),\
+    prefix(), default_file(), autoindex(false), cgi_pass(false),\
+    program_exec_cgi() {};
+} t_location;
 
 class   Location
 {
@@ -25,17 +43,11 @@ class   Location
         private:
         std::string reason;
     };
+    t_location const &get_location() const;
 
     private:
-    bool    get;
-    bool    post;
-    bool    del;
-    std::string file_directory;
-    std::string prefix;
-    std::string default_file;
-    bool    autoindex;
-    bool    cgi_pass;
-    std::string program_exec_cgi;
+    t_location location;
+
     void    parse_location_block(IT &it, IT end);
     void    parse_cgi(IT &it, IT end);
     void    extract_cgi_line(IT &it, IT end);

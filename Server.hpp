@@ -5,7 +5,20 @@
 # include <string>
 # include <map>
 # include <exception>
+# include <cstring>
 # include "Location.hpp"
+
+typedef struct s_server
+{
+    std::string server_repo;
+    std::vector<int> open_ports;
+    std::vector<std::string> server_names;
+    std::map<int, std::string> error_files;
+    int max_body_size;
+    std::vector<Location> location_blocks;
+    s_server() : server_repo(), open_ports(), server_names(), \
+    error_files(), max_body_size(0), location_blocks() {}; 
+} t_server;
 
 class Server
 {
@@ -27,14 +40,10 @@ class Server
         private:
         std::string const &val;
     };
-    private:
-    std::string server_repo;
-    std::vector<int> open_ports;
-    std::vector<std::string> server_names;
-    std::map<int, std::string> error_files;
-    int max_body_size;
-    std::vector<Location> location_blocks;
+    t_server const &get_server() const;
 
+    private:
+    t_server server;
     void    retrieve_info(IT &it, IT end);
     void    server_name(IT &it, IT end);
     void    root(IT &it, IT end);

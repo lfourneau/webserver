@@ -7,24 +7,14 @@ Server::Server(IT &it, IT end)
 
 Server::Server(Server const &other)
 {
-    server_repo = other.server_repo;
-    open_ports = other.open_ports;
-    server_names = other.server_names;
-    error_files = other.error_files;
-    max_body_size = other.max_body_size;
-    location_blocks = other.location_blocks;
+    server = other.server;
 }
 
 Server &Server::operator=(Server const &other)
 {
     if (this != &other)
     {
-        server_repo = other.server_repo;
-        open_ports = other.open_ports;
-        server_names = other.server_names;
-        error_files = other.error_files;
-        max_body_size = other.max_body_size;
-        location_blocks = other.location_blocks;
+        server = other.server;
     }
     return (*this);
 }
@@ -66,7 +56,7 @@ void    Server::server_name(IT &it, IT end)
 {
     while (!(it == end || *it == ";"))
     {
-        server_names.push_back(*it);
+        server.server_names.push_back(*it);
         ++it;
     }
     if (it == end)
@@ -78,7 +68,7 @@ void    Server::root(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")
         throw(ErrorServerBlock("root methods only accept one arguement and must end in semi-colon"));
-    this->server_repo = *it;
+    server.server_repo = *it;
     it = it + 2;
 }
 
@@ -89,7 +79,7 @@ void    Server::error_pages(IT &it, IT end)
     if ((it + 1) == end || (it + 2) == end || *(it + 1) == ";" || *(it + 2 ) != ";")
         throw(ErrorServerBlock("error_logs must have two arguments and a semi-colon"));
     code =  atoi((*it).c_str());
-    error_files[code] =  *(it + 1);
+    server.error_files[code] =  *(it + 1);
     it = it + 3;
 }
 
@@ -98,7 +88,7 @@ void    Server::client_size(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")
         throw(ErrorServerBlock("client_max_body_size requires one argument and a semi-colon"));
-    this->max_body_size = atoi((*it).c_str());
+    server.max_body_size = atoi((*it).c_str());
     it = it + 2;
 }
 
@@ -106,7 +96,7 @@ void    Server::listen(IT &it, IT end)
 {
      if ((it + 1) == end || *(it + 1) != ";")
         throw(ErrorServerBlock("listen requires one argument and a semi-colon"));
-    this->open_ports.push_back(atoi((*it).c_str()));
+    server.open_ports.push_back(atoi((*it).c_str()));
     it  = it + 2;
    
 }
@@ -115,5 +105,10 @@ void    Server::location(IT &it, IT end)
 {
     Location    location_block(it, end);
 
-    location_blocks.push_back(location_block);
+    server.location_blocks.push_back(location_block);
+}
+
+t_server const & Server::get_server() const
+{
+    return (this->server);
 }

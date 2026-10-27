@@ -1,39 +1,20 @@
 #include "Location.hpp"
 
-Location::Location(IT &it, IT end) : get(false), post(false), del(false), \
-file_directory(""), prefix(""), default_file(""), autoindex(false), \
-cgi_pass(false), program_exec_cgi("")
+Location::Location(IT &it, IT end)
 {
-
     parse_location_block(it, end);
 }
 
 Location::Location(Location const &other)
 {
-    get = other.get;
-    post = other.post;
-    del = other.del;
-    file_directory = other.file_directory;
-    prefix = other.prefix;
-    default_file = other.default_file;
-    autoindex = other.autoindex;
-    cgi_pass = other.cgi_pass;
-    program_exec_cgi = other.program_exec_cgi;
+    location = other.location;
 }
 
 Location &Location::operator=(Location const &other)
 {
     if (this != &other)
     {
-        get = other.get;
-        post = other.post;
-        del = other.del;
-        file_directory = other.file_directory;
-        prefix = other.prefix;
-        default_file = other.default_file;
-        autoindex = other.autoindex;
-        cgi_pass = other.cgi_pass;
-        program_exec_cgi = other.program_exec_cgi;
+        location = other.location;
     }
     return (*this);
 }
@@ -61,7 +42,7 @@ void Location::parse_cgi(IT &it, IT end)
 {
     if (!(*it == ".py" || *it == ".php"))
         throw (InvalidLocationBlock("not supported file type for cgi"));
-    cgi_pass = true;
+    location.cgi_pass = true;
     ++it;
     if (*it != "{") 
         throw (InvalidLocationBlock("missing curly brackets after location block"));
@@ -77,7 +58,7 @@ void Location::parse_cgi(IT &it, IT end)
 
 void Location::parse_location(IT &it, IT end)
 {
-    this->prefix = *it;
+    location.prefix = *it;
     ++it;
 
     if (*it++ != "{")
@@ -111,7 +92,7 @@ void Location::index_file(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")
         throw(InvalidLocationBlock("Missing index_file argument or semi-colon"));
-    this->default_file = *it;
+    location.default_file = *it;
     ++it;
 }
 
@@ -140,11 +121,11 @@ void    Location::parse_accepted_methods(IT &it, IT end)
     while (*it != ";" && it != end)
     {
         if (*it == "GET")
-            get = true;
+            location.get = true;
         else if (*it == "POST")
-            post = true;
+            location.post = true;
         else if (*it == "DELETE")
-            del = true;
+            location.del = true;
         else 
             throw(InvalidLocationBlock("HTTP method not supported by server"));
         ++it;
@@ -157,7 +138,7 @@ void    Location::parse_root(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")
         throw(InvalidLocationBlock("Missing root argument or semi-colon"));
-    this->file_directory = *it;
+    location.file_directory = *it;
     ++it;
 }
 
@@ -168,7 +149,7 @@ void    Location::parse_autoindex(IT &it, IT end)
     if (!((*it == "on") || (*it == "off")))
         throw(InvalidLocationBlock("Only on or off is accepted for the autindex method"));
     if (*it == "on")
-        this->autoindex = true;
+        location.autoindex = true;
     ++it;
 }
 
@@ -179,8 +160,13 @@ void    Location::parse_cgi_exec(IT &it, IT end)
     if (!(*it == "/usr/bin/php-cgi" || *it == "/usr/bin/python3"))
         throw(InvalidLocationBlock("only php or pyton files are accepted for php(/usr/bin/php-cgi) and python(/usr/bin/python3)"));
     if (*it == "/usr/bin/php-cgi")
-        this->program_exec_cgi = "/usr/bin/php-cgi";
+        location.program_exec_cgi = "/usr/bin/php-cgi";
     else
-        this->program_exec_cgi = "usr/bin/python3";
+        location.program_exec_cgi = "usr/bin/python3";
     ++it;
+}
+
+t_location const &Location::get_location() const
+{
+    return (this->location);
 }

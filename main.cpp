@@ -16,7 +16,7 @@ Steps in the creation of a webserver
 int main(int ac, char **av)
 {
     ServerConfig *configurations = NULL;
-    SetUpSocket *server_exec = NULL;
+//    SetUpSocket *server_exec = NULL;
 
     if (ac != 2)
     {
@@ -29,14 +29,14 @@ int main(int ac, char **av)
     try
     {
         configurations = new ServerConfig(value);
-        server_exec = new SetUpSocket(configurations);
+        //server_exec = new SetUpSocket(configurations);
     }
     catch (std::exception &e)
     {
         if (configurations != NULL)
             delete configurations;
-        if (server_exec != NULL)
-            delete server_exec;
+//        if (server_exec != NULL)
+//            delete server_exec;
         std::cerr << "Error: " << e.what() << std::endl;
         return (2);
     }

@@ -11,13 +11,21 @@
 # include "Server.hpp"
 # include "Location.hpp"
 
+typedef struct s_serverconfig
+{
+    std::vector<std::string> tokens;
+    std::vector<Server> servers;
+} t_serverconfig;
+
 class ServerConfig
 {
     public:
     ServerConfig(std::string &path_config);
     ServerConfig(ServerConfig const &other);
     ServerConfig &operator=(ServerConfig const &other);
-    ~ServerConfig();
+    ~ServerConfig(); 
+    t_serverconfig const get_server_config() const;
+
     class FileOpenFail : public std::exception
     {
         virtual const char *what() const throw()
@@ -39,9 +47,9 @@ class ServerConfig
             return ("Missing bracket");
         }
     };
+
     private:
-    std::vector<std::string> tokens;
-    std::vector<Server> servers;
+    t_serverconfig servconfig;
 
     void open_read_config(std::string &content, std::string &config);
     void parse_content(std::stringstream &content);

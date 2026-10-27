@@ -40,24 +40,33 @@ SetUpSocket &SetUpSocket::operator=(SetUpSocket const &other)
 
 SetUpSocket::~SetUpSocket()
 {
-
     if (this->return_getaddr_info != NULL)
         freeaddrinfo(this->return_getaddr_info);
 }
 
 void    SetUpSocket::get_addr()
 {
-    if (getaddrinfo(NULL, port.c_str(), &this->parameter, &this->return_getaddr_info))
+    std::vector<Server>::const_iterator it;
+    std::vector<Server>::const_iterator end;
+    struct addrinfo new_addrinfo;
+
+    for (it = this->config->get_server().begin(); it != end; it++)
     {
-        throw(SocketSetUpFail("getaddrinfo has failed"));
+        while (*it)
+        if (getaddrinfo(NULL, port.c_str(), &this->parameter, &this->return_getaddr_info))
+            throw(SocketSetUpFail("getaddrinfo has failed"));
+        
     }
 }
 
 void    SetUpSocket::socket_creation()
 {
-    fd_socket = socket(this->domain, this->type, 0);
-    if (fd_socket == -1)
+    int new_listen_fd;
+
+    new_listen_fd = socket(this->domain, this->type, 0);
+    if (new_listen_fd == -1)
         throw (SocketSetUpFail("socket creation has failed"));
+    fds_listen.insert(new_listen_fd);
 }
 
 void    SetUpSocket::set_sock_non_crash()
@@ -74,9 +83,7 @@ void    SetUpSocket::set_sock_non_crash()
 void    SetUpSocket::bind_socket()
 {
     if (bind(fd_socket, return_getaddr_info->ai_addr, return_getaddr_info->ai_addrlen))
-    {
         throw(SocketSetUpFail("binding has failed"));
-    }
 }
 
 void    SetUpSocket::listen_socket()
