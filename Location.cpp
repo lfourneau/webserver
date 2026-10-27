@@ -1,18 +1,40 @@
 #include "Location.hpp"
 
-Location::Location(IT &it, IT end)
+Location::Location(IT &it, IT end) : get(false), post(false), del(false), \
+file_directory(""), prefix(""), default_file(""), autoindex(false), \
+cgi_pass(false), program_exec_cgi("")
 {
+
     parse_location_block(it, end);
 }
 
 Location::Location(Location const &other)
 {
-    (void)other;
+    get = other.get;
+    post = other.post;
+    del = other.del;
+    file_directory = other.file_directory;
+    prefix = other.prefix;
+    default_file = other.default_file;
+    autoindex = other.autoindex;
+    cgi_pass = other.cgi_pass;
+    program_exec_cgi = other.program_exec_cgi;
 }
 
 Location &Location::operator=(Location const &other)
 {
-    (void)other;
+    if (this != &other)
+    {
+        get = other.get;
+        post = other.post;
+        del = other.del;
+        file_directory = other.file_directory;
+        prefix = other.prefix;
+        default_file = other.default_file;
+        autoindex = other.autoindex;
+        cgi_pass = other.cgi_pass;
+        program_exec_cgi = other.program_exec_cgi;
+    }
     return (*this);
 }
 
@@ -39,6 +61,7 @@ void Location::parse_cgi(IT &it, IT end)
 {
     if (!(*it == ".py" || *it == ".php"))
         throw (InvalidLocationBlock("not supported file type for cgi"));
+    cgi_pass = true;
     ++it;
     if (*it != "{") 
         throw (InvalidLocationBlock("missing curly brackets after location block"));
@@ -47,30 +70,41 @@ void Location::parse_cgi(IT &it, IT end)
     {
         extract_cgi_line(it, end);
     }
+    if (*it != "}")
+        throw(InvalidLocationBlock("Location blocks must end in }"));
+    it++;
 }
 
 void Location::parse_location(IT &it, IT end)
 {
-    this->file_redirect = *it;
+    this->prefix = *it;
     ++it;
 
+    if (*it++ != "{")
+        throw(InvalidLocationBlock("curly bracket missing in location block"));
     std::string const accepted_rules[] = {"accepted_methods", "root", "index", "autoindex"};
     static void (Location::* const functions[])(IT &, IT) = {&Location::parse_accepted_methods,
         &Location::parse_root, \
         &Location::index_file, \
         &Location::parse_autoindex};
-
-    for (int i = 0; i < 4; i++)
+    while (it != end && *it != ";" && *it != "}")
     {
-        if (*it == accepted_rules[i])
+        for (int i = 0; i < 4; i++)
         {
-            ++it;
-            (this->*functions[i])(it, end);
-            ++it;
-            return ;
+            if (*it == accepted_rules[i])
+            {
+                ++it;
+                (this->*functions[i])(it, end);
+                ++it;
+                break ;
+            }
+            if (i == 4)
+                throw(InvalidLocationBlock("invalid request rule"));
         }
     }
-    throw(InvalidLocationBlock("invalid request rule"));
+    if (*it != "}")
+        throw(InvalidLocationBlock("location blocks must have a closing }"));
+    it++;
 }
 
 void Location::index_file(IT &it, IT end)
@@ -131,7 +165,7 @@ void    Location::parse_autoindex(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")
         throw(InvalidLocationBlock("Missing autoindex argument or semi-colon"));
-    if (!(*it == "on") || (*it == "off"))
+    if (!((*it == "on") || (*it == "off")))
         throw(InvalidLocationBlock("Only on or off is accepted for the autindex method"));
     if (*it == "on")
         this->autoindex = true;
@@ -142,8 +176,8 @@ void    Location::parse_cgi_exec(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")
         throw(InvalidLocationBlock("Missing semi-colon or exec file"));   
-    if (!(*it == "/usr/bin/php-cgi" || *it == "usr/bin/python3"))
-        throw(InvalidLocationBlock("only php or pyton files are accepted for php(/usr/bin/php-cgi) and python(usr/bin/python3)"));
+    if (!(*it == "/usr/bin/php-cgi" || *it == "/usr/bin/python3"))
+        throw(InvalidLocationBlock("only php or pyton files are accepted for php(/usr/bin/php-cgi) and python(/usr/bin/python3)"));
     if (*it == "/usr/bin/php-cgi")
         this->program_exec_cgi = "/usr/bin/php-cgi";
     else

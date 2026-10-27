@@ -94,8 +94,9 @@ void ServerConfig::reinitialize_string(std::string &content)
 void ServerConfig::recup_information()
 {
     std::vector<std::string>::iterator it;
+    std::vector<std::string>::iterator end = tokens.end();
 
-    for (it = tokens.begin(); it != tokens.end(); ++it)
+    for (it = tokens.begin(); it != end; ++it)
     {
         if (*it == "server")
         {
@@ -105,5 +106,7 @@ void ServerConfig::recup_information()
 
             servers.push_back(new_server_block);
         }
+        if (it == end)
+            break;
     }
 }

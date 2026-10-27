@@ -31,7 +31,7 @@ class   Location
     bool    post;
     bool    del;
     std::string file_directory;
-    std::string file_redirect;
+    std::string prefix;
     std::string default_file;
     bool    autoindex;
     bool    cgi_pass;
