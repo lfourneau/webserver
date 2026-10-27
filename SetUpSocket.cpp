@@ -1,8 +1,9 @@
 # include "SetUpSocket.hpp"
+# include "ServerConfig.hpp"
 # include "HTTP.hpp"
 
-SetUpSocket::SetUpSocket(int domain, int type, int protocol, std::string port) : domain(domain), \
-type(type), protocol(protocol), port(port), return_getaddr_info(NULL)
+SetUpSocket::SetUpSocket(ServerConfig *config) : domain(AF_INET), \
+type(SOCK_STREAM), protocol(0), return_getaddr_info(NULL), config(config)
 {
     std::memset(&this->parameter, 0, sizeof(this->parameter));
     parameter.ai_family = domain;
@@ -39,22 +40,34 @@ SetUpSocket &SetUpSocket::operator=(SetUpSocket const &other)
 
 SetUpSocket::~SetUpSocket()
 {
+
     if (this->return_getaddr_info != NULL)
         freeaddrinfo(this->return_getaddr_info);
-}
-
-void    SetUpSocket::socket_creation()
-{
-    fd_socket = socket(this->domain, this->type, 0);
-    if (fd_socket == -1)
-        throw (SocketCreationFailure());
 }
 
 void    SetUpSocket::get_addr()
 {
     if (getaddrinfo(NULL, port.c_str(), &this->parameter, &this->return_getaddr_info))
     {
-        throw(GetAddrInfoFail());
+        throw(SocketSetUpFail("getaddrinfo has failed"));
+    }
+}
+
+void    SetUpSocket::socket_creation()
+{
+    fd_socket = socket(this->domain, this->type, 0);
+    if (fd_socket == -1)
+        throw (SocketSetUpFail("socket creation has failed"));
+}
+
+void    SetUpSocket::set_sock_non_crash()
+{
+    int option = true;
+
+    if (setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
+    {
+        close(fd_socket);
+        throw(SocketSetUpFail("sockoption has failed"));
     }
 }
 
@@ -62,7 +75,7 @@ void    SetUpSocket::bind_socket()
 {
     if (bind(fd_socket, return_getaddr_info->ai_addr, return_getaddr_info->ai_addrlen))
     {
-        throw(BindingFail());
+        throw(SocketSetUpFail("binding has failed"));
     }
 }
 
@@ -71,7 +84,7 @@ void    SetUpSocket::listen_socket()
     //somaxconn defines the maximum concurrent connections the server
     //can receive
     if (listen(fd_socket, SOMAXCONN))
-        throw(ListeningFailed());
+        throw(SocketSetUpFail("listening has failed"));
 }
 
 void    SetUpSocket::monitor_connections()
@@ -93,7 +106,7 @@ void    SetUpSocket::monitor_connections()
         { 
             if (return_select < 0)
             {
-                throw(SelectFailed());
+                throw(SocketSetUpFail("select has failed"));
             }
             else
             {
@@ -115,7 +128,7 @@ void    SetUpSocket::monitor_connections()
                         int total_read;
                         total_read = recv(i, buffer, sizeof(buffer) - 1, 0);
                         if (total_read == -1)
-                            throw(RecvException());
+                            throw(SocketSetUpFail("recv() has failed"));
                         if (total_read == 0)
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
@@ -137,16 +150,5 @@ void    SetUpSocket::monitor_connections()
                 }
             }
         }
-    }
-}
-
-void    SetUpSocket::set_sock_non_crash()
-{
-    int option = true;
-
-    if (setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
-    {
-        close(fd_socket);
-        throw(SockOptFail());
     }
 }

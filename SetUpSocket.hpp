@@ -15,63 +15,27 @@
 # include <unistd.h>
 # include <vector>
 # include "HTTP.hpp"
+# include "ServerConfig.hpp"
 
 class SetUpSocket
 {
     public:
-        SetUpSocket(int domain, int type, int protocol, std::string port);
+        SetUpSocket(ServerConfig *config);
         SetUpSocket(SetUpSocket const &other);
         SetUpSocket &operator=(SetUpSocket const &other);
         ~SetUpSocket();
-        class SocketCreationFailure : public std::exception
+        class SocketSetUpFail : public std::exception
         {
+            public:
+            SocketSetUpFail(std::string reason) : res(reason) {};
+            ~SocketSetUpFail() {};
             virtual const char *what() const throw()
             {
                 return "socket creation has failed";
             }
+            private:
+            std::string const res;
         };
-        class GetAddrInfoFail : public std::exception
-        {
-            virtual const char *what() const throw()
-            {
-                return "getaddrinfo has failed";
-            }
-        };
-        class BindingFail : public std::exception
-        {
-            virtual const char *what() const throw()
-            {
-                return "binding has failed";
-            }
-        };
-        class ListeningFailed : public std::exception
-        {
-            virtual const char *what() const throw()
-            {
-                return "listening has failed";
-            }
-        };       
-        class SelectFailed : public std::exception
-        {
-            virtual const char *what() const throw()
-            {
-                return "select has failed";
-            }
-        };           
-        class SockOptFail : public std::exception
-        {
-            virtual const char *what() const throw()
-            {
-                return "sockoption has failed";
-            }
-        };  
-        class RecvException : public std::exception
-        {
-            virtual const char *what() const throw()
-            {
-                return "recv() has failed";
-            }
-        };  
         private:
         int fd_socket;
         const int domain;
@@ -80,6 +44,8 @@ class SetUpSocket
         const std::string port;
         struct addrinfo parameter;
         struct addrinfo *return_getaddr_info;
+        ServerConfig *config;
+
         void    socket_creation();
         void    get_addr();
         void    bind_socket();

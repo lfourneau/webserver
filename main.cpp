@@ -13,40 +13,32 @@ Steps in the creation of a webserver
 6) While receiving the message echo its content
 7) Close  the socket*/
 
-//int main(void)
-//{
-//    SetUpSocket     init(AF_INET, SOCK_STREAM, 0, "5400");
-//
-//    while (1)
-//    {
-//        ;
-//    }
-//    return (0);
-//}
-
-/*
-int main(void)
-{
-    std::string file = "GET / HTTP/1.1\r\nHost: example.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 49\r\n\r\nname=FirstName+LastName&email=bsmth%40example.com\r\n";
-
-    HTTP    content(1);
-    content.append_content(file.c_str(), file.length() + 1);
-    content.parse_input(); 
-}
-*/
-
-//int main(int ac, char **av)
-//{
-//    ErrorCodes  pb(atoi(av[1]));
-//
-//    std::cout << "Error code: " << pb.getcode() << " String value: " << pb.getmessage() << std::endl;
-//    return (0);
-//}
-
 int main(int ac, char **av)
 {
-    (void)ac;
+    ServerConfig *configurations = NULL;
+    SetUpSocket *server_exec = NULL;
+
+    if (ac != 2)
+    {
+        std::cerr << "Invalid amount of arguments" << std::endl;
+        return 1; 
+    }
+
     std::string value(av[1]);
 
-    ServerConfig ressource(value);
+    try
+    {
+        configurations = new ServerConfig(value);
+        server_exec = new SetUpSocket(configurations);
+    }
+    catch (std::exception &e)
+    {
+        if (configurations != NULL)
+            delete configurations;
+        if (server_exec != NULL)
+            delete server_exec;
+        std::cerr << "Error: " << e.what() << std::endl;
+        return (2);
+    }
+    return (0);
 }

@@ -42,7 +42,6 @@ class Server
     void    client_size(IT &it, IT end);
     void    listen(IT &it, IT end);
     void    location(IT &it, IT end);
-
 };
 
 #endif
