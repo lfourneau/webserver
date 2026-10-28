@@ -4,7 +4,7 @@ Delete::Delete(HTTP const &other) : HTTP(other)
 {
 }
 
-Delete::Delete(Delete const &other) : HTTP(0)
+Delete::Delete(Delete const &other) : HTTP(other)
 {
     (void)other;
     return ;

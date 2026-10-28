@@ -93,21 +93,21 @@ void ServerConfig::reinitialize_string(std::string &content)
 
 void ServerConfig::recup_information()
 {
-    std::vector<std::string>::iterator it;
+    std::vector<std::string>::iterator it = servconfig.tokens.begin();
     std::vector<std::string>::iterator end = servconfig.tokens.end();
 
-    for (it = servconfig.tokens.begin(); it != end; ++it)
+    while (it != end)
     {
         if (*it == "server")
         {
             it++;
 
-            Server  new_server_block(it, servconfig.tokens.end());
+            Server  new_server_block(it, end);
 
             servconfig.servers.push_back(new_server_block.get_server());
         }
-        if (it == end)
-            break;
+        else
+            throw (WhiteChar());
     }
 }
 

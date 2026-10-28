@@ -22,12 +22,12 @@ ErrorCodes::~ErrorCodes()
 {
 }
 
-std::string ErrorCodes::getmessage() const
+std::string const &ErrorCodes::getmessage() const
 {
     return (this->message);
 }
 
-int ErrorCodes::getcode() const 
+int const &ErrorCodes::getcode() const 
 {
     return (this->_code);
 }

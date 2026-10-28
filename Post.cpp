@@ -5,7 +5,7 @@ Post::Post(HTTP const &other) : HTTP(other)
     size_content = 0;
 }
 
-Post::Post(Post const &other) : HTTP(0)
+Post::Post(Post const &other) : HTTP(other)
 {
     (void)other;
     return ;

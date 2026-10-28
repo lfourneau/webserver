@@ -96,7 +96,7 @@ void    Server::listen(IT &it, IT end)
 {
      if ((it + 1) == end || *(it + 1) != ";")
         throw(ErrorServerBlock("listen requires one argument and a semi-colon"));
-    server.open_ports.push_back(atoi((*it).c_str()));
+    server.open_ports.insert(atoi((*it).c_str()));
     it  = it + 2;
    
 }

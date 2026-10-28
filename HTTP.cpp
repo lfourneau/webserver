@@ -6,11 +6,13 @@
 
 //Les constructeurs
 
-HTTP::HTTP(int fd) : associated_fd(fd), pwd(PATH_FILES_DIRECTORY), cgi_request(false), code(200), error_message("OK")
+HTTP::HTTP(int fd, t_serverconfig const &serv) : associated_fd(fd), pwd(PATH_FILES_DIRECTORY), \
+len_body(-1), cgi_request(false), code(200), error_message("OK"),\
+headers_parsed(false), server_rules(serv), bloc_found(false)
 {
 }
 
-HTTP::HTTP(const HTTP &other)
+HTTP::HTTP(const HTTP &other) : server_rules(other.server_rules)
 {
     this->associated_fd = other.associated_fd;
     this->request_content = other.request_content;
@@ -25,10 +27,13 @@ HTTP::HTTP(const HTTP &other)
     this->query_string = other.query_string;
     this->content_type = other.content_type;
     this->body = other.body;
+    this->len_body = other.len_body;
     this->cgi_request = other.cgi_request;
     this->code = other.code;
     this->header_lines = other.header_lines;
     this->error_message = other.error_message;
+    this->bloc_found = other.bloc_found;
+    this->headers_parsed = other.headers_parsed;
 }
 
 HTTP    &HTTP::operator=(const HTTP &other)
@@ -48,10 +53,13 @@ HTTP    &HTTP::operator=(const HTTP &other)
         this->query_string = other.query_string;
         this->content_type = other.content_type;
         this->body = other.body;
+        this->len_body = other.len_body;
         this->cgi_request = other.cgi_request;
         this->code = other.code;
         this->header_lines = other.header_lines;
         this->error_message = other.error_message;
+        this->bloc_found = other.bloc_found;
+        this->headers_parsed = other.headers_parsed;
     }
     return (*this);
 }
@@ -74,15 +82,20 @@ void HTTP::print_content()
 
 void    HTTP::get_value_host()
 {
-    std::map<std::string, std::string>::iterator host_val = header_lines.find("Host");
+    std::string host_val;
+   
+    try
+    {
+        host_val = header_lines.at("Host");
+    }
+    catch(const std::exception& e)
+    {
+        (void)(e);
+        throw(ErrorCodes(400));
+    }
     std::stringstream info;
 
-    if (host_val == header_lines.end())
-    {
-        std::cout << "Error with the host header line" << std::endl;
-        return ;
-    }
-    info << host_val->second;
+    info << host_val;
     getline(info, host, ':');
     getline(info, host_port);
 }
@@ -100,10 +113,55 @@ int HTTP::append_content(const char *append_info, unsigned int total_read)
     request_content.append(append_info, total_read);
     if (this->request_content.find("\r\n\r\n") != std::string::npos)
     {
-        analyse_buffer();
+        try
+        {
+            if (headers_parsed == false)
+            {
+                analyse_buffer();
+                headers_parsed = true;
+            }
+            if (all_body_received())
+                perform_request();
+            else 
+                return (0);
+        }
+        catch(const ErrorCodes &e)
+        {
+            std::string err = e.what();
+            int val = e.getcode();
+            std::cerr << "Error: " << err << '\n';
+            build_error(val, err);
+            cgi_content();
+        }
+        encapsulate_response();
+        close(associated_fd);
         return (1);
     }
     return (0);
+}
+
+bool    HTTP::all_body_received()
+{
+    if (request_method == "GET" || (request_method == "POST" && \
+        cgi_request == true) || request_method == "DELETE")
+        return (true);
+
+    if (request_method == "POST")
+    {
+        if (len_body == -1)
+        {
+            std::map<std::string, std::string>::iterator it;
+
+            it = header_lines.find("Content-Length");
+            if (it == header_lines.end())
+                throw (ErrorCodes(400));
+            transform_to_num(it->second, len_body);
+        }
+        if (static_cast<long unsigned int>(len_body) == body.size())
+            return (true);
+        return (false);
+    }
+    return (true);
 }
 
 void HTTP::analyse_buffer()
@@ -115,22 +173,12 @@ void HTTP::analyse_buffer()
     std::string server_response;
 
     flux << this->request_content;
-    try
-    {
-        parse_initial_response_line(flux);
-        parse_header_lines(flux);
-        http_body(flux);
-        get_value_host();
-        determine_extension();
-        perform_request();
-    }
-    catch(const ErrorCodes& e)
-    {
-        build_error(e.getcode(), e.getmessage());
-        cgi_content();
-    }
-    encapsulate_response();
-    close(associated_fd);
+    parse_initial_response_line(flux);
+    parse_header_lines(flux);
+    http_body(flux);
+    get_value_host();
+    determine_extension();
+    find_bloc_request();
 }
 
 void    HTTP::build_error(int error_code, std::string meaning)
@@ -142,11 +190,11 @@ void    HTTP::build_error(int error_code, std::string meaning)
     this->pwd = "/home/lfournea/Documents/webserver/cgi-bin/error_page.py";
     this->content = TransformToString() << "code=" << error_code;
     this->host = "localhost";
-    this->host_port = "5400";
+    this->host_port = "5600";
     this->file_type = "text/html";
     this->query_string = "";
     this->content_type = "text/html";
-    this->body = "";
+    this->body = TransformToString() << "code=" << error_code;
     this->cgi_request = true;
     this->code = error_code;
     this->error_message = meaning;
@@ -158,6 +206,8 @@ void    HTTP::perform_request()
     //un document
     if (request_method == "GET" || (request_method == "POST" && cgi_request == true))
     {
+        if (!check_authorized_method(request_method))
+            throw(ErrorCodes(403));
         if (cgi_request == false)
             read_file();
         else
@@ -180,6 +230,46 @@ void    HTTP::perform_request()
     }
     else 
         throw(ErrorCodes(405));
+}
+
+bool HTTP::check_authorized_method(std::string const &val)
+{
+    t_location location_to_check;
+
+    if (!find_location_block(location_to_check))
+        return (false);
+    if (val == "GET" && location_to_check.get == true)
+        return (true);
+    else if (val == "POST" && location_to_check.post == true)
+        return (true);
+    else if (val == "DELETE" && location_to_check.del == true)
+        return (true);
+    return (false);
+}
+
+bool HTTP::find_location_block(t_location &find)
+{
+    int longest_match = 0;
+    size_t pos;
+
+    for (std::vector<s_location>::iterator it = this->bloc.location_blocks.begin(); \
+    it != this->bloc.location_blocks.end(); \
+    ++it)
+    {
+        pos = URI.compare(0, it->prefix.size(), it->prefix);
+        if (pos == 0)
+        {
+            if (static_cast<int>(it->prefix.size()) > longest_match)
+            {
+                longest_match = static_cast<int>(it->prefix.size());
+                find = *it;
+            }
+        }
+    }
+    if (longest_match != 0)
+        return (true);
+    throw(ErrorCodes(404));
+    return (false);
 }
 
 void HTTP::parse_initial_response_line(std::stringstream &flux)
@@ -374,4 +464,45 @@ void    HTTP::encapsulate_response()
     final_message = output_message.str();
     send(this->associated_fd, final_message.c_str(), final_message.size(), 0);
     return ;
+}
+
+void    HTTP::find_bloc_request()
+{
+    std::vector<t_server>::const_iterator it = this->server_rules.servers.begin();
+
+    for (; it != this->server_rules.servers.end(); ++it)
+    {
+        int port_to_compare = -1;
+
+        for (std::set<int>::iterator val = it->open_ports.begin(); val != it->open_ports.end(); ++val )
+        {
+            int port_num;
+            transform_to_num(host_port, port_num);
+            if (*val == port_num)
+            {
+                port_to_compare = port_num;
+                break;
+            }
+        }
+        if (port_to_compare == -1)
+            continue;
+        if (bloc_found == false)
+        {
+            bloc = *it;
+            bloc_found = true;
+            continue;
+        }
+        for (std::vector<std::string>::const_iterator server_names = it->server_names.begin(); \
+            server_names != it->server_names.end(); ++server_names)
+        {
+            if (*server_names == host)
+            {
+                bloc = *it;
+                bloc_found = true;
+                return;
+            }
+        }
+    }
+    if (bloc_found == false)
+        throw (ErrorCodes(500));
 }

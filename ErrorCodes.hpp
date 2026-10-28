@@ -13,8 +13,8 @@ class ErrorCodes : public std::exception
     ErrorCodes &operator=(ErrorCodes const &other);
     ~ErrorCodes();
     virtual const char *what() const throw();
-    int  getcode() const;
-    std::string  getmessage() const;
+    int  const &getcode() const;
+    std::string  const &getmessage() const;
     private:
     const int _code;
     const std::string message; 

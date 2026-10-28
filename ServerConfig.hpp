@@ -47,7 +47,13 @@ class ServerConfig
             return ("Missing bracket");
         }
     };
-
+    class WhiteChar : public std::exception
+    {
+        virtual const char *what() const throw()
+        {
+            return ("probable wrong character end file");
+        }
+    };
     private:
     t_serverconfig servconfig;
 

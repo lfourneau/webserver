@@ -2,6 +2,7 @@
 # define FIND_STRUCTURES_TPP
 
 # include <string>
+# include <istream>
 
 template <typename T, typename V> T &find_value_vector(std::vector<T> &vec, \
     V (T::*member)(), V value)
@@ -32,5 +33,12 @@ template <typename T, typename V> void delete_vector(std::vector<T> &vec, \
         }
     }
 };
+
+template <typename T> void transform_to_num(std::string const &val, T &num)
+{
+    std::istringstream content(val);
+
+    content >> num;
+}
 
 #endif

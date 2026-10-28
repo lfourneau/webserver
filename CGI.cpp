@@ -5,7 +5,7 @@ CGI::CGI(HTTP const &other) : HTTP(other)
     exec_program = "/usr/bin/python3";
 }
 
-CGI::CGI(CGI const &other) : HTTP(0)
+CGI::CGI(CGI const &other) : HTTP(other)
 {
     (void)other;
 }

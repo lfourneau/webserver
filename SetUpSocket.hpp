@@ -38,7 +38,7 @@ class SetUpSocket
             std::string const res;
         };
         private:
-        std::set<int> fds_listen;
+        std::map<int, int> fds_listen;
         std::vector<struct addrinfo*> structures_addr_info;
         const int domain;
         const int type;
@@ -49,13 +49,15 @@ class SetUpSocket
         ServerConfig *config;
 
         void    for_each_block();
-        void    socket_creation(struct addrinfo *structure);
+        void    socket_creation(struct addrinfo *structure, int i);
         void    get_addr(t_server const &other);
         void    bind_socket(int &file_desc, struct addrinfo *info);
         void    listen_socket(int &file_desc);
         void    set_connections_fd_set(fd_set &keep);
         void    monitor_connections();
         void    set_sock_non_crash(int &file_descriptor);
+        bool    check_port_not_already_used(int port);
+
 };
 
 # include "find_structure.tpp"

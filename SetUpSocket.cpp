@@ -55,23 +55,23 @@ void    SetUpSocket::for_each_block()
     it != this->config->get_server_config().servers.end() ; it++)
     {
         get_addr(*it);
-
     }
 }
 
 void    SetUpSocket::get_addr(t_server const &serv)
 {
-    std::vector<int>::const_iterator it;
-    std::vector<int>::const_iterator end = serv.open_ports.end();
+    std::set<int>::const_iterator it;
+    std::set<int>::const_iterator end = serv.open_ports.end();
 
     for (it = serv.open_ports.begin(); it != end; it++)
     {
+        check_port_not_already_used(*it);
         struct addrinfo *new_addrinfo = NULL;
         std::ostringstream to_string;
-        std::string portimao;
         
+        if (check_port_not_already_used(*it))
+            continue;
         to_string << *it;
-        portimao = to_string.str();
         if (getaddrinfo(NULL, to_string.str().c_str(), &this->parameter,\
          &new_addrinfo))
             throw(SocketSetUpFail("getaddrinfo has failed"));
@@ -80,7 +80,7 @@ void    SetUpSocket::get_addr(t_server const &serv)
         struct addrinfo *next = new_addrinfo->ai_next;
         while (true)
         {
-            socket_creation(new_addrinfo);
+            socket_creation(new_addrinfo, *it);
             if (next == NULL)
                 break;
             new_addrinfo = next;
@@ -89,7 +89,19 @@ void    SetUpSocket::get_addr(t_server const &serv)
     }
 }
 
-void    SetUpSocket::socket_creation(struct addrinfo *info)
+bool    SetUpSocket::check_port_not_already_used(int port)
+{
+    std::map<int, int>::iterator it = fds_listen.begin();
+
+    for (; it != fds_listen.end(); ++it)
+    {
+        if (it->second == port)
+            return (true);
+    }
+    return (false);
+}
+
+void    SetUpSocket::socket_creation(struct addrinfo *info, int i)
 {
     int new_listen_fd;
 
@@ -99,7 +111,7 @@ void    SetUpSocket::socket_creation(struct addrinfo *info)
     set_sock_non_crash(new_listen_fd);
     bind_socket(new_listen_fd, info);
     listen_socket(new_listen_fd);
-    fds_listen.insert(new_listen_fd);
+    fds_listen[new_listen_fd] = i;
 }
 
 void    SetUpSocket::set_sock_non_crash(int &file_desc)
@@ -129,11 +141,11 @@ void    SetUpSocket::listen_socket(int &file_desc)
 
 void    SetUpSocket::set_connections_fd_set(fd_set &keep)
 {
-    std::set<int>::const_iterator it = fds_listen.begin();
+    std::map<int, int>::const_iterator it = fds_listen.begin();
 
     for (; it != fds_listen.end(); ++it)
     {
-        FD_SET(*it, &keep);
+        FD_SET(it->first, &keep);
     }
 }
 
@@ -155,9 +167,7 @@ void    SetUpSocket::monitor_connections()
         if (return_select)
         { 
             if (return_select < 0)
-            {
                 throw(SocketSetUpFail("select has failed"));
-            }
             else
             {
                 for (int i = 0; i < FD_SETSIZE; i++)
@@ -169,7 +179,7 @@ void    SetUpSocket::monitor_connections()
                         fd_received = accept(i, NULL, NULL);
                         FD_SET(fd_received, &keep);
 
-                        HTTP    new_connection(fd_received);
+                        HTTP    new_connection(fd_received, this->config->get_server_config());
                         list_files.push_back(new_connection);
                     }
                     else
@@ -181,15 +191,13 @@ void    SetUpSocket::monitor_connections()
                             throw(SocketSetUpFail("recv() has failed"));
                         if (total_read == 0)
                         {
-                            HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
-
-                            structure.analyse_buffer();
                             delete_vector(list_files, &HTTP::get_client_fd, i);
                             FD_CLR(i, &keep); 
                         }
                         else
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
+
                             if (structure.append_content(buffer, total_read))
                             {
                                 delete_vector(list_files, &HTTP::get_client_fd, i);

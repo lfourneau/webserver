@@ -4,6 +4,7 @@
 # include <vector>
 # include <string>
 # include <map>
+# include <set>
 # include <exception>
 # include <cstring>
 # include "Location.hpp"
@@ -11,7 +12,7 @@
 typedef struct s_server
 {
     std::string server_repo;
-    std::vector<int> open_ports;
+    std::set<int> open_ports;
     std::vector<std::string> server_names;
     std::map<int, std::string> error_files;
     int max_body_size;

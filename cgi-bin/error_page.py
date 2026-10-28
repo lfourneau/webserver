@@ -3,6 +3,7 @@
 
 How the server tells the script which code to show (any one works):
     - query string:   /cgi-bin/error_page.py?code=404&path=/missing.html
+    - POST body:      code=404&path=/missing.html  (read from stdin)
     - environment:    STATUS_CODE=404  or  REDIRECT_STATUS=404
 The requested path is optional: `path=` in the query string or REQUEST_URI.
 
@@ -29,7 +30,8 @@ ERRORS = {
     505: ("HTTP Version Not Supported", "The server does not support this HTTP version."),
 }
 
-fields = c.parse(c.query_string())
+# Query string, merged with the POST body (read from stdin) when there is one.
+fields, _ = c.params()
 raw_code = fields.get("code") or c.env("STATUS_CODE", "REDIRECT_STATUS", default="500")
 try:
     code = int(raw_code)

@@ -16,13 +16,14 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <map>
+# include "ServerConfig.hpp"
 
 # define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver"
 
 class HTTP
 {
     public:
-    HTTP(int fd);
+    HTTP(int fd, t_serverconfig const &conf);
     HTTP(const HTTP &other);
     HTTP &operator=(const HTTP &other);
     ~HTTP();
@@ -44,10 +45,14 @@ class HTTP
     std::string query_string;
     std::string content_type;
     std::string body;
+    int len_body;
     bool    cgi_request;
     int code;
     std::string error_message;
-
+    bool headers_parsed;
+    t_serverconfig const &server_rules;
+    bool bloc_found;
+    t_server bloc;
     std::map<std::string, std::string> header_lines;
     
     //helper functions
@@ -60,6 +65,9 @@ class HTTP
     void    http_body(std::stringstream &flux);
     void    determine_extension();
     void    perform_request();
+    bool    all_body_received();
+    void    find_bloc_request();
+    bool    find_location_block(t_location &find);
 
     //GET content methods
     void    read_file();
@@ -76,6 +84,9 @@ class HTTP
 
     //send response
     void    encapsulate_response();
+
+    //check authorizations methods
+    bool    check_authorized_method(std::string const &val);
 };
 
 # include "find_structure.tpp"
