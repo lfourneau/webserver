@@ -33,6 +33,7 @@ HTTP::HTTP(const HTTP &other) : server_rules(other.server_rules)
     this->header_lines = other.header_lines;
     this->error_message = other.error_message;
     this->bloc_found = other.bloc_found;
+    this->loc = other.loc;
     this->headers_parsed = other.headers_parsed;
 }
 
@@ -59,6 +60,7 @@ HTTP    &HTTP::operator=(const HTTP &other)
         this->header_lines = other.header_lines;
         this->error_message = other.error_message;
         this->bloc_found = other.bloc_found;
+        this->loc = other.loc;
         this->headers_parsed = other.headers_parsed;
     }
     return (*this);
@@ -177,7 +179,6 @@ void HTTP::analyse_buffer()
     parse_header_lines(flux);
     http_body(flux);
     get_value_host();
-    determine_extension();
     find_bloc_request();
 }
 
@@ -234,15 +235,13 @@ void    HTTP::perform_request()
 
 bool HTTP::check_authorized_method(std::string const &val)
 {
-    t_location location_to_check;
-
-    if (!find_location_block(location_to_check))
+    if (!find_location_block(loc))
         return (false);
-    if (val == "GET" && location_to_check.get == true)
+    if (val == "GET" && loc.get == true)
         return (true);
-    else if (val == "POST" && location_to_check.post == true)
+    else if (val == "POST" && loc.post == true)
         return (true);
-    else if (val == "DELETE" && location_to_check.del == true)
+    else if (val == "DELETE" && loc.del == true)
         return (true);
     return (false);
 }
@@ -280,7 +279,6 @@ void HTTP::parse_initial_response_line(std::stringstream &flux)
     {
             throw(ErrorCodes(400));
     }
-    
     std::istringstream input(first_line);
     std::string extra_values;
 
@@ -351,25 +349,53 @@ void    HTTP::http_body(std::stringstream &flux)
 // ici on lit et on stocke le contenu du fichier dans une string
 void    HTTP::read_file()
 {
-    std::string file = pwd;
     int file_desc;
 
-    if (cgi_request == false)
-        file += "/html_files";
-    if (URI == "/")
+    modify_route(pwd);
+    if (!contains_a_file() && this->pwd.back() == '/')
     {
-        URI = "/index.html"; 
-        content_type = "text/html";
+        pwd += '/';
+        throw(ErrorCodes(301));
     }
-    file += URI;
-    file_desc = open(file.c_str(), O_RDONLY);
+    if (!contains_a_file() && this->loc.default_file != "")
+    {
+        pwd += this->loc.default_file;
+        determine_extension();
+    }
+    else if (!contains_a_file() && this->loc.autoindex == true)
+    {
+        //ici il faut envoyer un fichier qui montre tous les
+        //de l'index
+    }
+    else if (!contains_a_file() && this->loc.autoindex == false)
+    {
+        throw (ErrorCodes(403));
+    }
+    file_desc = open(pwd.c_str(), O_RDONLY);
     if (file_desc == -1)
-    {
-        code = 404; 
         throw(ErrorCodes(404));
-    }
-    pwd = file;
     read_and_store_file(file_desc);
+}
+
+bool HTTP::contains_a_file()
+{
+    size_t rightmost_dash;
+    size_t rightmost_dot;
+
+    if (this->cgi_request == true)
+        return (true);
+    rightmost_dash = pwd.rfind("/");
+    rightmost_dot = pwd.rfind(".");
+
+    if (rightmost_dot != std::string::npos && rightmost_dot > rightmost_dash)
+        return (true);
+    return (false);
+}
+
+void HTTP::modify_route(std::string &ref)
+{
+    ref = TransformToString() << this->loc.file_directory << URI;
+    return;
 }
 
 bool    HTTP::check_cgi_request()
@@ -396,8 +422,8 @@ void    HTTP::determine_extension()
         "application/json", "image/png", "image/jpeg", "image/jpeg", "image/gif", "image/svg+xml", \
         "image/x-ico", "application/pdf", "text/html" };
 
-    last_slash = URI.rfind('/');
-    exstension = URI.rfind('.');
+    last_slash = pwd.rfind('/');
+    exstension = pwd.rfind('.');
     if (exstension == std::string::npos && last_slash != std::string::npos)
     {
         content_type = std::string("application/octet-stream");
@@ -405,7 +431,7 @@ void    HTTP::determine_extension()
     }
     for (int i = 0; static_cast<unsigned long>(i) < sizeof(file_exstensions) / sizeof(file_exstensions[0]); i++)
     {
-        if (URI.compare(exstension + 1, std::string::npos, file_exstensions[i]) == 0)
+        if (URI.find(file_exstensions[i]) != std::string::npos)
         {
             content_type = file_type[i];
             if (i > 12)

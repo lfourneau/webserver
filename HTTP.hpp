@@ -53,6 +53,7 @@ class HTTP
     t_serverconfig const &server_rules;
     bool bloc_found;
     t_server bloc;
+    t_location loc;
     std::map<std::string, std::string> header_lines;
     
     //helper functions
@@ -87,6 +88,12 @@ class HTTP
 
     //check authorizations methods
     bool    check_authorized_method(std::string const &val);
+    
+    //implement file rerouting
+    void    modify_route(std::string &ref);
+
+    //check path doesn't lead to file
+    bool    contains_a_file();
 };
 
 # include "find_structure.tpp"
