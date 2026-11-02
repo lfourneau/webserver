@@ -54,7 +54,7 @@ void    Post::get_post_headers(std::stringstream &flux)
     std::string line;
     std::string key;
     std::string value;
-    max_char = atoi(header_lines.find("Content-Length")->second.c_str());
+    transform_to_num(header_lines["Content-Length"], max_char);
     size_t del;
 
     getline(flux, seperator);

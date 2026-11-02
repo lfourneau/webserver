@@ -190,12 +190,12 @@ void    HTTP::build_error(int error_code, std::string meaning)
     this->protocol_version = "HTTP/1.0";
     this->pwd = "/home/lfournea/Documents/webserver/cgi-bin/error_page.py";
     this->content = TransformToString() << "code=" << error_code;
-    this->host = "localhost";
-    this->host_port = "5600";
+    this->host = host;
+    this->host_port = "host_port";
     this->file_type = "text/html";
     this->query_string = "";
     this->content_type = "text/html";
-    this->body = TransformToString() << "code=" << error_code;
+    this->body = TransformToString() << "code=" << error_code << "meaning=" << meaning;
     this->cgi_request = true;
     this->code = error_code;
     this->error_message = meaning;
@@ -352,7 +352,7 @@ void    HTTP::read_file()
     int file_desc;
 
     modify_route(pwd);
-    if (!contains_a_file() && this->pwd[pwd.length() - 1]== '/')
+    if (!contains_a_file() && this->pwd[pwd.length() - 1] != '/')
     {
         pwd += '/';
         throw(ErrorCodes(301));
