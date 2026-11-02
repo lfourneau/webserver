@@ -12,7 +12,7 @@ class Post : public HTTP
     Post(HTTP const &other);
     Post(Post const &other);
     Post &operator=(Post const &other);
-    ~Post();
+    virtual ~Post() throw();
     void request_post();
     private:
     void get_post_headers(std::stringstream &content);

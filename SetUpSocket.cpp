@@ -34,7 +34,7 @@ SetUpSocket &SetUpSocket::operator=(SetUpSocket const &other)
     return (*this);
 }
 
-SetUpSocket::~SetUpSocket()
+SetUpSocket::~SetUpSocket() throw()
 {
     if (this->return_getaddr_info != NULL)
     {

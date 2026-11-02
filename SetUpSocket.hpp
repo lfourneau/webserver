@@ -24,12 +24,12 @@ class SetUpSocket
         SetUpSocket(ServerConfig *config);
         SetUpSocket(SetUpSocket const &other);
         SetUpSocket &operator=(SetUpSocket const &other);
-        ~SetUpSocket();
+        virtual ~SetUpSocket() throw();
         class SocketSetUpFail : public std::exception
         {
             public:
             SocketSetUpFail(std::string reason) : res(reason) {};
-            ~SocketSetUpFail() {};
+            virtual ~SocketSetUpFail() throw() {};
             virtual const char *what() const throw()
             {
                 return "socket creation has failed";

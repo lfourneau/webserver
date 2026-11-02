@@ -2,7 +2,8 @@
 # define FIND_STRUCTURES_TPP
 
 # include <string>
-# include <istream>
+# include <sstream>
+# include <vector>
 
 template <typename T, typename V> T &find_value_vector(std::vector<T> &vec, \
     V (T::*member)(), V value)

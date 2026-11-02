@@ -28,12 +28,12 @@ class Server
     Server(IT &it, IT end);
     Server(Server const &other);
     Server &operator=(Server const &other);
-    ~Server();
+    virtual ~Server() throw();
     class ErrorServerBlock : public std::exception
     {
         public:
         ErrorServerBlock(std::string content) : val(content) {};
-        ~ErrorServerBlock() {};
+        virtual ~ErrorServerBlock() throw() {};
         virtual const char * what() const throw()
         {
             return ("Invalid token after server");
@@ -53,5 +53,7 @@ class Server
     void    listen(IT &it, IT end);
     void    location(IT &it, IT end);
 };
+
+# include "find_structure.tpp"
 
 #endif

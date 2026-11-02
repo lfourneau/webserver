@@ -35,7 +35,7 @@ class   Location
     {
         public:
         InvalidLocationBlock(std::string reason) : reason(reason) {};
-        ~InvalidLocationBlock() {};
+        virtual ~InvalidLocationBlock() throw() {};
         virtual const char * what() const throw()
         {
             return (this->reason.c_str());

@@ -18,7 +18,7 @@ class   CGI : public HTTP
         CGI(HTTP const &other);
         CGI(CGI const &other);
         CGI &operator=(CGI const &other);
-        ~CGI();
+        virtual ~CGI() throw();
         std::string get_output();
     private:
     

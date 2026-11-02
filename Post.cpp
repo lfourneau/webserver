@@ -17,7 +17,7 @@ Post    &Post::operator=(Post const &other)
    return (*this);
 }
 
-Post::~Post()
+Post::~Post() throw()
 {
 }
 

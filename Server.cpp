@@ -19,7 +19,7 @@ Server &Server::operator=(Server const &other)
     return (*this);
 }
 
-Server::~Server()
+Server::~Server() throw()
 {
 }
 
@@ -78,7 +78,7 @@ void    Server::error_pages(IT &it, IT end)
 
     if ((it + 1) == end || (it + 2) == end || *(it + 1) == ";" || *(it + 2 ) != ";")
         throw(ErrorServerBlock("error_logs must have two arguments and a semi-colon"));
-    code =  atoi((*it).c_str());
+    transform_to_num(std::string(*it), code);
     server.error_files[code] =  *(it + 1);
     it = it + 3;
 }
@@ -88,17 +88,19 @@ void    Server::client_size(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")
         throw(ErrorServerBlock("client_max_body_size requires one argument and a semi-colon"));
-    server.max_body_size = atoi((*it).c_str());
+    transform_to_num(*it, server.max_body_size);
     it = it + 2;
 }
 
 void    Server::listen(IT &it, IT end)
 {
+    int port;
+
      if ((it + 1) == end || *(it + 1) != ";")
         throw(ErrorServerBlock("listen requires one argument and a semi-colon"));
-    server.open_ports.insert(atoi((*it).c_str()));
+    transform_to_num(*it, port);
+    server.open_ports.insert(port);
     it  = it + 2;
-   
 }
 
 void    Server::location(IT &it, IT end)

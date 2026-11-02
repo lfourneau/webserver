@@ -16,7 +16,7 @@ CGI &CGI::operator=(CGI const &other)
     return (*this);
 }
 
-CGI::~CGI()
+CGI::~CGI() throw()
 {
     free_char_lists();
 }
@@ -95,6 +95,7 @@ void    CGI::sup_post(std::vector<std::string> &vec)
     {
         vec.push_back(TransformToString() << "CONTENT_LENGTH=" << content.size());
         vec.push_back(TransformToString() << "CONTENT_TYPE=" << find_type());
+    
     }
 }
 

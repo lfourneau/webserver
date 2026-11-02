@@ -8,7 +8,7 @@ ErrorCodes::ErrorCodes(int value) : _code(value), message(find_associated_value(
 {
 }
 
-ErrorCodes::ErrorCodes(ErrorCodes const &other) : ErrorCodes(other.getcode())
+ErrorCodes::ErrorCodes(ErrorCodes const &other) : _code(other.getcode()), message(other.message)
 {
 }
 
@@ -18,7 +18,7 @@ ErrorCodes &ErrorCodes::operator=(ErrorCodes const &other)
     return (*this);
 }
 
-ErrorCodes::~ErrorCodes()
+ErrorCodes::~ErrorCodes() throw()
 {
 }
 

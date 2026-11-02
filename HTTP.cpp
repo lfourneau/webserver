@@ -66,7 +66,7 @@ HTTP    &HTTP::operator=(const HTTP &other)
     return (*this);
 }
 
-HTTP::~HTTP()
+HTTP::~HTTP() throw()
 {
 
 }
@@ -352,7 +352,7 @@ void    HTTP::read_file()
     int file_desc;
 
     modify_route(pwd);
-    if (!contains_a_file() && this->pwd.back() == '/')
+    if (!contains_a_file() && this->pwd[pwd.length() - 1]== '/')
     {
         pwd += '/';
         throw(ErrorCodes(301));

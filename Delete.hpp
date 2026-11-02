@@ -11,10 +11,9 @@ class Delete : public HTTP
     Delete(HTTP const &other);
     Delete(Delete const &other);
     Delete &operator=(Delete const &other);
-    ~Delete();
+    virtual ~Delete() throw();
     void    request_delete();
 
 };
-
 
 #endif

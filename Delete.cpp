@@ -16,7 +16,7 @@ Delete    &Delete::operator=(Delete const &other)
    return (*this);
 }
 
-Delete::~Delete()
+Delete::~Delete() throw()
 {
 }
 

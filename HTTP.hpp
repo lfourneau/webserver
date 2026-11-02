@@ -26,7 +26,7 @@ class HTTP
     HTTP(int fd, t_serverconfig const &conf);
     HTTP(const HTTP &other);
     HTTP &operator=(const HTTP &other);
-    ~HTTP();
+    virtual ~HTTP() throw();
     void    analyse_buffer();
     int    append_content(const char *content, unsigned int total_read);
     void get_value_host();

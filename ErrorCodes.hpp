@@ -11,7 +11,7 @@ class ErrorCodes : public std::exception
     ErrorCodes(int value);
     ErrorCodes(ErrorCodes const &other);
     ErrorCodes &operator=(ErrorCodes const &other);
-    ~ErrorCodes();
+    virtual ~ErrorCodes() throw();
     virtual const char *what() const throw();
     int  const &getcode() const;
     std::string  const &getmessage() const;
