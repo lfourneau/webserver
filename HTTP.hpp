@@ -20,10 +20,18 @@
 
 # define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver"
 
+enum e_status
+{
+    PARSE_REQUEST,
+    PARSE_HEADER,
+    PARSE_BODY,
+    APPLY_RULES,
+};
+
 class HTTP
 {
     public:
-    HTTP(int fd, t_serverconfig const &conf);
+    HTTP(int fd, std::vector<t_server> const &conf);
     HTTP(const HTTP &other);
     HTTP &operator=(const HTTP &other);
     virtual ~HTTP() throw();
@@ -31,30 +39,24 @@ class HTTP
     int    append_content(const char *content, unsigned int total_read);
     void get_value_host();
     int     get_client_fd();
-    protected:
-    int     associated_fd;
+
+    private:
+    std::vector<t_server> const &server_rules;
     std::string request_content;
-    std::string request_method;
-    std::string URI;
-    std::string protocol_version;
-    std::string pwd;
-    std::string content;
-    std::string host;
-    std::string host_port;
-    std::string file_type;
-    std::string query_string;
-    std::string content_type;
-    std::string body;
-    int len_body;
     bool    cgi_request;
+    e_status status;
     int code;
     std::string error_message;
-    bool headers_parsed;
-    t_serverconfig const &server_rules;
-    bool bloc_found;
+
+    protected:
+    int     associated_fd;
+    std::string content;
+    //on garde
+    std::string body;
+
     t_server bloc;
     t_location loc;
-    std::map<std::string, std::string> header_lines;
+    std::map<std::string, std::string> info_request;
     
     //helper functions
     void    print_content();
@@ -98,5 +100,6 @@ class HTTP
 
 # include "find_structure.tpp"
 # include "concatenate.tpp"
+# include "transform_num.tpp"
 
 #endif

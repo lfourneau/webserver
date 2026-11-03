@@ -59,7 +59,7 @@ void ServerConfig::tokenize(std::string const &flux)
 
         if (std::isspace(current_char) && current_token.empty() == false)
         {
-            servconfig.tokens.push_back(current_token);
+            tokens.push_back(current_token);
             reinitialize_string(current_token);
         }
         else if (current_char == '#')
@@ -71,10 +71,10 @@ void ServerConfig::tokenize(std::string const &flux)
         {
             if (current_token.empty() == false)
             {
-                servconfig.tokens.push_back(current_token);
+                tokens.push_back(current_token);
                 reinitialize_string(current_token);
             }
-            servconfig.tokens.push_back(std::string(1, current_char));
+            tokens.push_back(std::string(1, current_char));
         }
         else if (std::isspace(current_char) == false) 
         {
@@ -82,8 +82,8 @@ void ServerConfig::tokenize(std::string const &flux)
         }
     }
     if (current_token.empty() == false)
-        servconfig.tokens.push_back(current_token);
-;}
+        tokens.push_back(current_token);
+}
 
 void ServerConfig::reinitialize_string(std::string &content)
 {
@@ -93,8 +93,8 @@ void ServerConfig::reinitialize_string(std::string &content)
 
 void ServerConfig::recup_information()
 {
-    std::vector<std::string>::iterator it = servconfig.tokens.begin();
-    std::vector<std::string>::iterator end = servconfig.tokens.end();
+    std::vector<std::string>::iterator it = tokens.begin();
+    std::vector<std::string>::iterator end = tokens.end();
 
     while (it != end)
     {
@@ -104,14 +104,14 @@ void ServerConfig::recup_information()
 
             Server  new_server_block(it, end);
 
-            servconfig.servers.push_back(new_server_block.get_server());
+            servers.push_back(new_server_block.get_server());
         }
         else
             throw (WhiteChar());
     }
 }
 
-t_serverconfig const &ServerConfig::get_server_config() const
+std::vector<t_server> const &ServerConfig::get_server_config() const
 {
-    return (this->servconfig);
+    return (servers);
 }

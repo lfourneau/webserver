@@ -1,25 +1,5 @@
 #include "HelperFunctions.hpp"
 
-HelperFunctions::HelperFunctions()
-{
-}
-
-HelperFunctions::HelperFunctions(HelperFunctions const &other)
-{
-    (void)other;
-}
-
-HelperFunctions &HelperFunctions::operator=(HelperFunctions const &other)
-{
-    (void)other;
-    return (*this);
-}
-
-HelperFunctions::~HelperFunctions()
-{
-    ;
-}
-
 std::string &HelperFunctions::trim_left(std::string &line, const char *char_to_trim)
 {
     size_t  location;
@@ -59,9 +39,9 @@ std::string &HelperFunctions::trim(std::string &line, const char *char_to_trim)
     return(line);
 }
 
-bool    HelperFunctions::isblank(std::string &line)
+bool    HelperFunctions::isblank(std::string const &line)
 {
-    std::string::iterator it;
+    std::string::const_iterator it;
 
     for (it = line.begin(); it != line.end(); it++)
     {

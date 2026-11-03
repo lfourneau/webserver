@@ -24,13 +24,13 @@ Post::~Post() throw()
 void Post::request_post()
 {
     size_t end_header = body.find("\r\n\r\n");
-    std::stringstream   read_file(body.substr(0, end_header));
-    std::stringstream   read_body(body.substr(end_header + 4, std::string::npos));
+    std::istringstream   read_file(body.substr(0, end_header));
+    std::istringstream   read_body(body.substr(end_header + 4, std::string::npos));
 
     get_post_headers(read_file);
     get_form_data();
     get_file_content(read_body);
-    if (URI == "/upload")
+    if (info_request["File"] == "/upload")
     {
         save_to_upload();
         std::cout << file_body << std::endl;
@@ -49,20 +49,21 @@ void    Post::save_to_upload()
     close(fd);
 }
 
-void    Post::get_post_headers(std::stringstream &flux) 
+void    Post::get_post_headers(std::istringstream &flux) 
 {
     std::string line;
     std::string key;
     std::string value;
-    transform_to_num(header_lines["Content-Length"], max_char);
+    transform_to_num(info_request["Content-Length"], max_char);
     size_t del;
 
-    getline(flux, seperator);
-    size_content += seperator.size() + 1;
-    if (seperator[seperator.size() - 1] == '\r')
-    {
-        seperator.erase(seperator.size() - 1);
-    }
+    //if (check_multiform_data())
+    //{
+    //    read_until(flux, seperator);
+    //    size_content += seperator.size() + 1;
+    //    if (seperator[seperator.size() - 1] == '\r')
+    //        seperator.erase(seperator.size() - 1);
+    //}
     while (getline(flux, line))
     {
         if (line.empty() == true || line == "\r")
@@ -72,7 +73,7 @@ void    Post::get_post_headers(std::stringstream &flux)
             size_content += 1;
             break;
         }
-        size_content += line.size() + 1;
+        size_content += line.size();
         if (line[line.size() - 1] == '\r')
         {
             line.erase(line.size() - 1);
@@ -89,13 +90,41 @@ void    Post::get_post_headers(std::stringstream &flux)
     }
 }
 
+bool    Post::check_multiform_data()
+{
+    std::string section;
+    std::istringstream get_content_type(this->info_request["Content-Type"]);
+    bool contains_multiform = false;
+    
+    while (get_content_type >> section) 
+    {
+        if (section[section.size() - 1] == ';')
+        {
+            section.erase(section.size() - 1, std::string::npos);
+        }
+        if (section == "multipart/form-data")
+        {
+            contains_multiform = true;
+        }
+        if (contains_multiform == true)
+        {
+            if (!section.compare(0, 9,"boundary="))
+            {
+                std::string sep(section.c_str() + 9, section.size() - 9);
+                seperator = sep; 
+            }
+        }
+    }
+    return (contains_multiform);
+}
+
 void    Post::get_form_data()
 {
     std::istringstream content(body_headers["Content-Disposition"]);
     std::string extract_info;
 
     content >> extract_info;
-    extract_info = HelperFunctions().trim(extract_info, ";");
+    extract_info = HelperFunctions::trim(extract_info, ";");
     if (extract_info != "form-data")
         return ;
     while (content >> extract_info)
@@ -107,13 +136,13 @@ void    Post::get_form_data()
         colon_location = extract_info.find("=");
         key = extract_info.substr(0, colon_location);
         value =  extract_info.substr(colon_location + 1, extract_info.length());
-        key = HelperFunctions().trim(key, "\";");
-        value = HelperFunctions().trim(value, "\";");
+        key = HelperFunctions::trim(key, "\";");
+        value = HelperFunctions::trim(value, "\";");
         form_data[key] = value ;
     }
 }
 
-void   Post::get_file_content(std::stringstream &flux)
+void   Post::get_file_content(std::istringstream &flux)
 {
     std::string file_content;
     std::string delim;

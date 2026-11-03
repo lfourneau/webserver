@@ -72,26 +72,26 @@ void    CGI::fork_program()
 
 void    CGI::basic_envp(std::vector<std::string> &vec)
 {
-    vec.push_back(TransformToString() << "SERVER_NAME=" << host);
-    vec.push_back(TransformToString() << "SERVER_PORT=" << host_port);
+    vec.push_back(TransformToString() << "SERVER_NAME=" << info_request["Host_name"]);
+    vec.push_back(TransformToString() << "SERVER_PORT=" << info_request["Host_port"]);
     vec.push_back("HTTP_GATEWAY_INTERFACE=CGI/1.1");
-    vec.push_back(TransformToString() << "HTTP_REQUEST_METHOD=" << request_method);
-    vec.push_back(TransformToString() << "HTTP_PROTOCOL_VERSION=" << protocol_version);
+    vec.push_back(TransformToString() << "HTTP_REQUEST_METHOD=" << info_request["Method"]);
+    vec.push_back(TransformToString() << "HTTP_PROTOCOL_VERSION=" << info_request["Protocol"]);
     vec.push_back("HTTP_SERVER_SOFTWARE=webserv/1.0");
     vec.push_back(TransformToString() << "HTTP_REMOTE_ADDR=" << associated_fd);
 }
 
 void    CGI::script_name(std::vector<std::string> &vec)
 {
-    pwd = HelperFunctions::trim(pwd, " \r\n\t");
-    query_string = HelperFunctions::trim(query_string, " \r\n\t");
-    vec.push_back(TransformToString() << "HTTP_SCRIPT_NAME=" << pwd);
-    vec.push_back(TransformToString() << "HTTP_QUERY_STRING=" << query_string);
+    info_request["File"] = HelperFunctions::trim(info_request["File"], " \r\n\t");
+    info_request["CGI params"] = HelperFunctions::trim(info_request["CGI params"], " \r\n\t");
+    vec.push_back(TransformToString() << "HTTP_SCRIPT_NAME=" << info_request["File"]);
+    vec.push_back(TransformToString() << "HTTP_QUERY_STRING=" << info_request["CGI params"]);
 }
 
 void    CGI::sup_post(std::vector<std::string> &vec)
 {
-    if (request_method == "POST")
+    if (info_request["Method"] == "POST")
     {
         vec.push_back(TransformToString() << "CONTENT_LENGTH=" << content.size());
         vec.push_back(TransformToString() << "CONTENT_TYPE=" << find_type());
@@ -132,7 +132,7 @@ void    CGI::transform_to_c_str(std::vector<std::string> const &vec)
 void    CGI::create_argv()
 {
     argv.push_back(const_cast<char *>(exec_program.c_str()));
-    argv.push_back(const_cast<char *>(pwd.c_str()));
+    argv.push_back(const_cast<char *>(info_request["File"].c_str()));
     argv.push_back(NULL);
 }
 

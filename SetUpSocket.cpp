@@ -51,8 +51,8 @@ void    SetUpSocket::for_each_block()
 {
     std::vector<t_server>::const_iterator it;
 
-    for (it = this->config->get_server_config().servers.begin(); \
-    it != this->config->get_server_config().servers.end() ; it++)
+    for (it = this->config->get_server_config().begin(); \
+    it != this->config->get_server_config().end() ; it++)
     {
         get_addr(*it);
     }

@@ -54,6 +54,6 @@ class Server
     void    location(IT &it, IT end);
 };
 
-# include "find_structure.tpp"
+# include "transform_num.tpp"
 
 #endif

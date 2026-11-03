@@ -11,12 +11,6 @@
 # include "Server.hpp"
 # include "Location.hpp"
 
-typedef struct s_serverconfig
-{
-    std::vector<std::string> tokens;
-    std::vector<t_server> servers;
-} t_serverconfig;
-
 class ServerConfig
 {
     public:
@@ -24,7 +18,7 @@ class ServerConfig
     ServerConfig(ServerConfig const &other);
     ServerConfig &operator=(ServerConfig const &other);
     ~ServerConfig(); 
-    t_serverconfig const &get_server_config() const;
+    std::vector<t_server> const &get_server_config() const;
 
     class FileOpenFail : public std::exception
     {
@@ -54,8 +48,11 @@ class ServerConfig
             return ("probable wrong character end file");
         }
     };
+    protected:
+    std::vector<t_server> servers;
+
     private:
-    t_serverconfig servconfig;
+    std::vector<std::string> tokens;
 
     void open_read_config(std::string &content, std::string &config);
     void parse_content(std::stringstream &content);

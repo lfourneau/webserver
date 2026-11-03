@@ -24,7 +24,7 @@ void Delete::request_delete()
 {
     std::string path;
 
-    path = TransformToString() << pwd << URI;
+    path = TransformToString() << info_request["File"];
     //verifier que la personne bien le droit de supprimer le fichier demande 
     if (std::remove(path.c_str()))
     {

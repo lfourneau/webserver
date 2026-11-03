@@ -35,11 +35,6 @@ template <typename T, typename V> void delete_vector(std::vector<T> &vec, \
     }
 };
 
-template <typename T> void transform_to_num(std::string const &val, T &num)
-{
-    std::istringstream content(val);
 
-    content >> num;
-}
 
 #endif
