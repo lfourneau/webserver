@@ -66,6 +66,6 @@ void    ExecuteRequest::complete_file(t_server const &serv, t_location const *lo
 
 std::string ExecuteRequest::get_output(t_server const &serv, t_location const *loc, t_header *head)
 {
-    
+    std::string (*f[])(t_execute *, t_header const *, t_locatoin const *) = {};
     //Ici il faut gerer les Get Post Delete et CGI
 }
