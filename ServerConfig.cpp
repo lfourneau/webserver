@@ -30,7 +30,7 @@ void ServerConfig::open_read_config(std::string &content, std::string &config)
 {
     int fd;
     char buffer[4096];
-    ssize_t total_read;
+    ssize_t more;
 
     fd = open(config.c_str(), O_RDONLY);
     if (fd == -1)
@@ -39,12 +39,12 @@ void ServerConfig::open_read_config(std::string &content, std::string &config)
     }
     while (true)
     {
-        total_read = read(fd, buffer, 4096);
-        if (total_read < 0)
+        more = read(fd, buffer, 4096);
+        if (more < 0)
             throw(ReadFail());
-        if (total_read == 0)
+        if (more == 0)
             break;
-        content.append(buffer);
+        content.append(buffer, more);
     }
     close(fd);
 }
@@ -107,7 +107,9 @@ void ServerConfig::recup_information()
             servers.push_back(new_server_block.get_server());
         }
         else
+        {
             throw (WhiteChar());
+        }
     }
 }
 

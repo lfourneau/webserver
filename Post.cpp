@@ -30,11 +30,8 @@ void Post::request_post()
     get_post_headers(read_file);
     get_form_data();
     get_file_content(read_body);
-    if (info_request["File"] == "/upload")
-    {
-        save_to_upload();
-        std::cout << file_body << std::endl;
-    }
+    save_to_upload();
+    std::cout << file_body << std::endl;
     
 }
 
@@ -43,7 +40,10 @@ void    Post::save_to_upload()
     int fd;
     std::string filename;
 
-    filename = TransformToString() << "./upload/" << form_data["filename"];
+    if (loc.file_directory != "")
+        filename = TransformToString() << loc.file_directory << loc.prefix << form_data["filename"];
+    else 
+        filename = TransformToString() << bloc.server_repo << loc.prefix << form_data["filename"];
     fd = open(filename.c_str(), O_RDWR |  O_CREAT | O_TRUNC, 0644);
     write(fd, file_body.c_str(), file_body.size());
     close(fd);

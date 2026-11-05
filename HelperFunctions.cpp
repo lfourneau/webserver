@@ -51,3 +51,11 @@ bool    HelperFunctions::isblank(std::string const &line)
     }
     return (true);
 }
+
+void    HelperFunctions::mini(std::string &val)
+{
+    for (unsigned int i = 0; i < val.size(); i++)
+    {
+        val[i] = static_cast<unsigned char>(tolower(val[i]));
+    }
+}

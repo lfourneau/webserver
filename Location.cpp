@@ -35,7 +35,7 @@ void    Location::parse_location_block(IT &it, IT end)
         parse_location(it, end);
         return ;
     }
-    throw(InvalidLocationBlock("location not a file or folder"));
+    throw(InvalidLocationBlock("location not a file or ffile_directoryolder"));
 }
 
 void Location::parse_cgi(IT &it, IT end)
@@ -43,6 +43,7 @@ void Location::parse_cgi(IT &it, IT end)
     if (!(*it == ".py" || *it == ".php"))
         throw (InvalidLocationBlock("not supported file type for cgi"));
     location.cgi_pass = true;
+    location.prefix = *it;
     ++it;
     if (*it != "{") 
         throw (InvalidLocationBlock("missing curly brackets after location block"));

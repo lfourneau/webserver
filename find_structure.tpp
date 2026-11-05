@@ -6,7 +6,7 @@
 # include <vector>
 
 template <typename T, typename V> T &find_value_vector(std::vector<T> &vec, \
-    V (T::*member)(), V value)
+    V (T::*member)() const, V value)
 {
     typename std::vector<T>::iterator it;
 
@@ -21,7 +21,7 @@ template <typename T, typename V> T &find_value_vector(std::vector<T> &vec, \
 };
 
 template <typename T, typename V> void delete_vector(std::vector<T> &vec, \
-    V (T::*member)(), V value)
+    V (T::*member)() const, V value)
 {
     typename std::vector<T>::iterator it;
 

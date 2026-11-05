@@ -11,6 +11,7 @@ class   HelperFunctions
         static std::string &trim_left(std::string &line, const char *char_to_trim);
         static std::string &trim(std::string &line, const char *char_to_trim);
         static bool isblank(std::string const &line);
+        static void mini(std::string &val);
     private:
         HelperFunctions();
         HelperFunctions(HelperFunctions const &other);

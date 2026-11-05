@@ -1,14 +1,18 @@
 #include "ErrorCodes.hpp"
 
-ErrorCodes::ErrorCodes() : _code(200), message(find_associated_value(this->getcode()))
+ErrorCodes::ErrorCodes() : _code(200), message(find_associated_value(this->getcode())), URI("")
 {
 }
 
-ErrorCodes::ErrorCodes(int value) : _code(value), message(find_associated_value(this->getcode()))
+ErrorCodes::ErrorCodes(int value) : _code(value), message(find_associated_value(this->getcode())), URI("")
 {
 }
 
-ErrorCodes::ErrorCodes(ErrorCodes const &other) : _code(other.getcode()), message(other.message)
+ErrorCodes::ErrorCodes(int value, std::string uri) : _code(value), message(find_associated_value(this->getcode())), URI(uri)
+{
+}
+
+ErrorCodes::ErrorCodes(ErrorCodes const &other) : _code(other.getcode()), message(other.message), URI(other.URI)
 {
 }
 
@@ -37,7 +41,7 @@ const char *ErrorCodes::what() const throw()
     return (this->getmessage().c_str());
 }
 
-std::string const ErrorCodes::find_associated_value(int const code)
+std::string  ErrorCodes::find_associated_value(int const code)
 {
     int const codes[] = {200, 201, 202, 203, 204, 205, 206, 207, 208,\
     300, 301, 302, 303, 304, 307, 308, \

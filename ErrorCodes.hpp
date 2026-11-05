@@ -9,6 +9,7 @@ class ErrorCodes : public std::exception
     public:
     ErrorCodes();
     ErrorCodes(int value);
+    ErrorCodes(int value, std::string uri);
     ErrorCodes(ErrorCodes const &other);
     ErrorCodes &operator=(ErrorCodes const &other);
     virtual ~ErrorCodes() throw();
@@ -16,9 +17,10 @@ class ErrorCodes : public std::exception
     int  const &getcode() const;
     std::string  const &getmessage() const;
     private:
-    const int _code;
-    const std::string message; 
-    const std::string find_associated_value(int const code);
+    int _code;
+    std::string message; 
+    std::string URI;
+    std::string find_associated_value(int const code);
 
 };
 
