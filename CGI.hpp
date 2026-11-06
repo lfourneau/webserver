@@ -1,6 +1,50 @@
 #ifndef CGI_HPP
 # define CGI_HPP
 
+# include "HTTP.hpp"
+# include "ExecuteRequest.hpp"
+# include "Location.hpp"
+# include "ErrorCodes.hpp"
+# include <string>
+# include <algorithm>
+
+
+typedef struct s_cgi
+{
+    char *prog;
+    char **argv;
+    std::vector<std::string> argv_str;
+    char **envp;
+    std::vector<std::string> content;
+    s_cgi() : prog(NULL), argv(NULL), envp(NULL) {}
+
+} t_cgi;
+
+class CGI
+{
+    public:
+    CGI();
+    CGI(CGI const &other);
+    CGI &operator=(CGI const &other);
+    ~CGI();
+    static void run(t_execute *exec, t_header const *head, t_location const *loc);
+    void extract_output(t_execute *, t_header const *, t_location const *);
+    private:
+    t_cgi cgi;
+    void make_headers(t_execute *, t_header const *, t_location const *);
+    void transform_client_headers(t_header const *head);
+    void add_additionnal_headers(t_execute *exec, t_header const *head, \
+    t_location const *loc);
+    void make_char_stars(t_header const *head, t_location const *loc);
+    void create_argv(t_header const *, t_location const *);
+    void transform_to_c_str(std::vector<std::string> const &vec, char **&dest);
+    void fork_program(t_execute *exec, \
+        t_header const *head, t_location const *loc);
+    void free_char_lists(char **&cont);
+
+};
+
+/*
 # include <vector>
 # include <utility>
 # include <string>
@@ -40,5 +84,6 @@ class   CGI : public HTTP
 
 # include "find_structure.tpp"
 # include "concatenate.tpp"
+*/
 
 #endif

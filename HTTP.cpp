@@ -52,20 +52,39 @@ il faudra gerer les erreures eventuelles*/
         return (false);
     if (header_http == NULL && http_request.find("\r\n\r\n") != std::string::npos)
         header_http = ServerParser::parse_input(http_request, http_request.find("\r\n\r\n"));
-    if (body_complete())
-    {
-        t_server const &server = FindServer::find_server(header_http, servers);
-        t_location const &location = FindServer::find_location(header_http, server);
+    if (!body_complete())
+        return (false);
+    t_server const &server = FindServer::find_server(header_http, servers);
+    if (server.max_body_size > 0 && \
+        header_http->body_request.size() > static_cast<size_t>(server.max_body_size))
+        throw ErrorCodes(413);
+    t_location const &location = FindServer::find_location(header_http, server);
 
-    }
+    ExecuteRequest req(server, location, *header_http);
+    req.execute();
     return (true);
 }
 
 bool HTTP::body_complete()
 {
-    if (!Chunked::check_chunked(header_http, http_request))
-        return (false);
-    Body::check_body_size(header_http, http_request);
+    size_t start = http_request.find("\r\n\r\n") + 4;
+    size_t len;
+
+    if (header_http->headers.count("transfer-encoding"))
+    {
+        if (!Chunked::check_chunked(header_http, http_request))
+            return (false);
+        header_http->body_request = Chunked::unchunk(http_request, start);
+    }
+    else if (header_http->headers.count("content-length"))
+    {
+        len = Body::get_content_length(header_http);
+        if (http_request.size() - start < len)
+            return (false);
+        header_http->body_request = http_request.substr(start, len);
+    }
+    else
+        header_http->body_request.clear();
     return (true);
 }
 
@@ -80,8 +99,7 @@ int HTTP::get_client_fd() const
     return (fd);
 }
 
-
-//HTTP::HTTP(int fd, std::vector<t_server> const &serv) : server_rules(serv), \
+//HTTP::HTTP(int fd, std::vector<t_server> const &serv) : server_rules(serv),
 //status(PARSE_REQUEST), code(200), error_message("OK"), associated_fd(fd)
 //{
 //}
@@ -200,7 +218,7 @@ int HTTP::get_client_fd() const
 //
 //bool    HTTP::all_body_received()
 //{
-//    if (info_request["Method"] == "GET" || (info_request["Method"] == "POST" && \
+//    if (info_request["Method"] == "GET" || (info_request["Method"] == "POST" &&
 //        loc.cgi_pass == true) || info_request["Method"] == "DELETE")
 //        return (true);
 //
@@ -308,8 +326,8 @@ int HTTP::get_client_fd() const
 //        info_request["File"] += '/';
 //        throw(ErrorCodes(301));
 //    }
-//    for (std::vector<s_location>::iterator it = this->bloc.location_blocks.begin(); \
-//    it != this->bloc.location_blocks.end(); \
+//    for (std::vector<s_location>::iterator it = this->bloc.location_blocks.begin();
+//    it != this->bloc.location_blocks.end();
 //    ++it)
 //    {
 //        if (it->cgi_pass == false)
@@ -370,7 +388,7 @@ int HTTP::get_client_fd() const
 //    std::string extra_values;
 //
 //    // la synthaxe renvoie vrai si on a pu lire et faux dans le cas contraire
-//    if (!(input >> info_request["Method"] >> info_request["File"] >> \
+//    if (!(input >> info_request["Method"] >> info_request["File"] >>
 //        info_request["Protocol"]) || (input >> extra_values))
 //    {
 //        throw(ErrorCodes(400));
@@ -478,7 +496,7 @@ int HTTP::get_client_fd() const
 //    rightmost_dash = info_request["File"].rfind("/");
 //    rightmost_dot = info_request["File"].rfind(".");
 //
-//    if (rightmost_dot != std::string::npos && (rightmost_dot - rightmost_dash > 1 || \
+//    if (rightmost_dot != std::string::npos && (rightmost_dot - rightmost_dash > 1 ||
 //    rightmost_dash != std::string::npos) )
 //        return (true);
 //    return (false);
@@ -502,10 +520,10 @@ int HTTP::get_client_fd() const
 //{
 //    size_t last_slash;
 //    size_t exstension;
-//    std::string file_exstensions[] = {".html", ".htm", ".css", ".js", ".txt", ".json", ".png", ".jpg", \
+//    std::string file_exstensions[] = {".html", ".htm", ".css", ".js", ".txt", ".json", ".png", ".jpg",
 //        ".jpeg", ".gif", ".svg", ".ico", ".pdf", ".py"};
-//    std::string file_type[] = {"text/html", "text/html", "text/css", "text/javascript", "text/plain", \
-//        "application/json", "image/png", "image/jpeg", "image/jpeg", "image/gif", "image/svg+xml", \
+//    std::string file_type[] = {"text/html", "text/html", "text/css", "text/javascript", "text/plain",
+//        "application/json", "image/png", "image/jpeg", "image/jpeg", "image/gif", "image/svg+xml",
 //        "image/x-ico", "application/pdf", "text/html" };
 //
 //    last_slash = info_request["File"].rfind('/');
@@ -567,9 +585,9 @@ int HTTP::get_client_fd() const
 //    std::ostringstream output_message;
 //    std::string final_message;
 //
-//    output_message << "HTTP/1.1 " << code << " " << this->error_message << "\r\n" \
-//    << "Content-Type: " << info_request["Content-Type"] << "\r\n" << "Content-Length: " << content.size() \
-//    << "\r\n" << "Location: " << info_request["File"] << "\r\n\r\n" \
+//    output_message << "HTTP/1.1 " << code << " " << this->error_message << "\r\n"
+//    << "Content-Type: " << info_request["Content-Type"] << "\r\n" << "Content-Length: " << content.size()
+//    << "\r\n" << "Location: " << info_request["File"] << "\r\n\r\n"
 //    << content;
 //    final_message = output_message.str();
 //    std::cout << "--------------------------------" << std::endl;
@@ -605,7 +623,7 @@ int HTTP::get_client_fd() const
 //            bloc_found = true;
 //            continue;
 //        }
-//        for (std::vector<std::string>::const_iterator server_names = it->server_names.begin(); \
+//        for (std::vector<std::string>::const_iterator server_names = it->server_names.begin();
 //            server_names != it->server_names.end(); ++server_names)
 //        {
 //            if (*server_names == info_request["Host_name"])

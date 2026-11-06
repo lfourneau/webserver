@@ -1,37 +1,25 @@
 #ifndef POST_HPP
 # define POST_HPP
 
-# include "HTTP.hpp"
-# include <iostream>
 # include <string>
-# include <vector>
-# include <list>
-# include <sstream>
-# include "HelperFunctions.hpp"
+# include "Location.hpp"
+# include "HTTP.hpp"
+# include "ExecuteRequest.hpp"
 
-class Post : public HTTP
+class Post
 {
     public:
-    Post(HTTP const &other);
+    static void post_file(t_execute *exec, t_header const *head, t_location const *loc);
+    private:
+    static std::string get_boundary(t_header const *head);
+    static std::string get_upload_dir(t_execute const *exec);
+    static bool parse_part(std::string const &part, std::string const &dir);
+    static std::string get_filename(std::string const &part_headers);
+    static void save_file(std::string const &path, std::string const &content);
+    Post();
     Post(Post const &other);
     Post &operator=(Post const &other);
-    virtual ~Post() throw();
-    void request_post();
-    private:
-    void get_post_headers(std::istringstream &content);
-    void get_file_content(std::istringstream &content);
-    void save_to_upload();
-    void get_form_data();
-    bool check_multiform_data();
-    int size_content;
-    int max_char;
-    std::string file_body;
-    std::string seperator;
-    std::map<std::string, std::string> body_headers;
-    std::map<std::string, std::string> form_data;
+    ~Post();
 };
-
-# include "find_structure.tpp"
-# include "read_until.tpp"
 
 #endif

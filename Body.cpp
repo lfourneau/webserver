@@ -1,33 +1,19 @@
 #include "Body.hpp"
+#include <cstdlib>
 
-void    Body::check_body_size(t_header const *val, std::string const &other)
+size_t Body::get_content_length(t_header const *val)
 {
-    int  size;
-    std::string check_format;
+    std::map<std::string, std::string>::const_iterator it = \
+    val->headers.find("content-length");
+    char *end;
+    unsigned long size;
 
-    if (val->headers.count("content-length"))
-    {
-        std::map<std::string, std::string>::const_iterator it = \
-        val->headers.find("content-length");
-        std::istringstream trans(it->second);
-        if (trans >> size || !(trans >> check_format) || size < 0)
-            throw(ErrorCodes(400));
-    }
-    else 
-        return;
-    size_t index_return = other.find("\r\n\r\n");
-    if (index_return == std::string::npos)
-        throw(ErrorCodes(400));
-    check_length_body(other, index_return + 4, size);
-}
-
-void    Body::check_length_body(std::string const &other, size_t index, int length)
-{
-    std::string body;
-    size_t end;
-
-    body = other.substr(index, std::string::npos);
-    end = body.find("\r\n\r\n");
-    if (end - index != static_cast<size_t>(length))
-        throw(ErrorCodes(400));
+    if (it == val->headers.end())
+        return (0);
+    if (it->second.empty() || it->second.find_first_not_of("0123456789") != std::string::npos)
+        throw ErrorCodes(400);
+    size = std::strtoul(it->second.c_str(), &end, 10);
+    if (*end != '\0')
+        throw ErrorCodes(400);
+    return (static_cast<size_t>(size));
 }

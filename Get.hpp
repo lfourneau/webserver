@@ -7,8 +7,8 @@
 class Get
 {
     public:
-    static std::string extract_output(t_execute *, t_header const *, t_location const *);
-    static void read_file(t_execute *exec, std::string file_to_read);
+    static void extract_output(t_execute *, t_header const *, t_location const *);
+    static void read_file(t_execute *exec);
     private:
     Get();
     Get(Get const &other);

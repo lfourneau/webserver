@@ -1,4 +1,5 @@
 #include "HelperFunctions.hpp"
+#include <sstream>
 
 std::string &HelperFunctions::trim_left(std::string &line, const char *char_to_trim)
 {
@@ -58,4 +59,20 @@ void    HelperFunctions::mini(std::string &val)
     {
         val[i] = static_cast<unsigned char>(tolower(val[i]));
     }
+}
+
+void    HelperFunctions::maxi(std::string &val)
+{
+    for (unsigned int i = 0; i < val.size(); i++)
+    {
+        val[i] = static_cast<unsigned char>(toupper(val[i]));
+    }
+}
+
+std::string HelperFunctions::ft_itoa(long val)
+{
+    std::ostringstream stream;
+
+    stream << val;
+    return (stream.str());
 }

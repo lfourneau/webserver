@@ -12,6 +12,8 @@ class   HelperFunctions
         static std::string &trim(std::string &line, const char *char_to_trim);
         static bool isblank(std::string const &line);
         static void mini(std::string &val);
+        static void maxi(std::string &val);
+        static std::string ft_itoa(long val);
     private:
         HelperFunctions();
         HelperFunctions(HelperFunctions const &other);

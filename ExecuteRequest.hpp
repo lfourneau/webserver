@@ -14,22 +14,32 @@ typedef struct s_execute
 {
     std::string output;
     std::string filename;
+    int code;
+    s_execute() : output(), filename(), code(200) {};
 } t_execute;
 
 class ExecuteRequest
 {
     public:
-    ExecuteRequest();
+    ExecuteRequest(t_server const &serv, t_location const &loc, t_header const &head);
     ExecuteRequest(ExecuteRequest const &other);
     ExecuteRequest &operator=(ExecuteRequest const &other);
     ~ExecuteRequest();
+    void execute();
+    int get_code() const;
+    std::string const &get_output() const;
+    std::string const &get_filename() const;
+
     private:
-    std::string const get_content(t_server const &serv, t_location const *loc, t_header * head);
-    void complete_file_path(t_server const &serv, t_location const *loc, t_header * head);
-    void complete_repo(t_server const &serv, t_location const *loc, t_header * head);
-    void complete_file(t_server const &serv, t_location const *loc, t_header * head);
-    std::string get_output(t_server const &serv, t_location const *loc, t_header *head);
+    ExecuteRequest();
+    t_server const *serv;
+    t_location const *loc;
+    t_header const *head;
     t_execute exec_info;
+    int find_method() const;
+    void build_path();
+    void complete_repo();
+    void complete_file();
 };
 
 #endif

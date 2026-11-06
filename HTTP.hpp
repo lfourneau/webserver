@@ -36,6 +36,7 @@ typedef struct s_header
     std::string cgi_extension;
     std::string protocol;
     std::string host_name;
+    std::string body_request;
     int     host_port;
     bool    file;
     bool    directory;
@@ -53,7 +54,6 @@ class HTTP
     int get_client_fd() const;
     bool    append_content(const char *cont, unsigned int size);
     bool    body_complete();
-
 
     private:
 

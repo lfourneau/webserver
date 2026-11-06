@@ -1,15 +1,14 @@
-#ifndef BODY_HPP 
+#ifndef BODY_HPP
 # define BODY_HPP
 
-# include <string> 
+# include <string>
 # include "HTTP.hpp"
 # include "ErrorCodes.hpp"
 
 class Body
 {
     public:
-    static void check_body_size(t_header const *val, std::string const &cont);
-    static void check_length_body(std::string const &other, size_t index, int length);
+    static size_t get_content_length(t_header const *val);
     private:
     Body();
     Body(Body const &other);
