@@ -163,7 +163,7 @@ void    Location::parse_cgi_exec(IT &it, IT end)
     if (*it == "/usr/bin/php-cgi")
         location.program_exec_cgi = "/usr/bin/php-cgi";
     else
-        location.program_exec_cgi = "usr/bin/python3";
+        location.program_exec_cgi = "/usr/bin/python3";
     ++it;
 }
 

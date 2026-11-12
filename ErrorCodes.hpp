@@ -16,6 +16,7 @@ class ErrorCodes : public std::exception
     virtual const char *what() const throw();
     int  const &getcode() const;
     std::string  const &getmessage() const;
+    std::string  const &get_uri() const;
     private:
     int _code;
     std::string message; 

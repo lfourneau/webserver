@@ -35,8 +35,8 @@ class CGI
     void transform_client_headers(t_header const *head);
     void add_additionnal_headers(t_execute *exec, t_header const *head, \
     t_location const *loc);
-    void make_char_stars(t_header const *head, t_location const *loc);
-    void create_argv(t_header const *, t_location const *);
+    void make_char_stars(t_execute const *exec, t_location const *loc);
+    void create_argv(t_execute const *, t_location const *);
     void transform_to_c_str(std::vector<std::string> const &vec, char **&dest);
     void fork_program(t_execute *exec, \
         t_header const *head, t_location const *loc);

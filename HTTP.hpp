@@ -17,6 +17,7 @@
 # include <stdlib.h>
 # include <map>
 # include "ServerConfig.hpp"
+# include "ErrorCodes.hpp"
 
 # define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver"
 
@@ -61,8 +62,12 @@ class HTTP
     std::vector<t_server> servers;
     std::string http_request;
     t_header *header_http;
+    std::string response;
 
-    bool    build_request();
+    bool    build_request(t_server const *&server, t_location const *&loc);
+    void    build_error(ErrorCodes const &err, t_server const *server, \
+        t_location const *loc);
+    void    send_response();
 };
 //class HTTP
 //{

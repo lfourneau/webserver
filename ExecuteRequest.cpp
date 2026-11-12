@@ -40,7 +40,13 @@ void    ExecuteRequest::execute()
     method = find_method();
     build_path();
     if (loc->cgi_pass)
+    {
+        struct stat info;
+
+        if (stat(exec_info.filename.c_str(), &info) == -1 || !S_ISREG(info.st_mode))
+            throw ErrorCodes(404);
         CGI::run(&exec_info, head, loc);
+    }
     else
     {
         if (method == 0)
@@ -108,6 +114,8 @@ void    ExecuteRequest::complete_repo()
         exec_info.filename += loc->default_file;
     else if (loc->autoindex)
         exec_info.filename += AUTOINDEX;
+    else if (this->head->method == "POST")
+        return;
     else
         throw ErrorCodes(403);
 }
@@ -121,6 +129,6 @@ void    ExecuteRequest::complete_file()
     if (S_ISREG(info.st_mode))
         return ;
     if (S_ISDIR(info.st_mode))
-        throw ErrorCodes(301, head->URI + '/');
+        throw ErrorCodes(head->method == "GET" ? 301 : 308, head->URI + '/');
     throw ErrorCodes(500);
 }

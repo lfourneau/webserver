@@ -7,6 +7,7 @@
 #include "Chunked.hpp"
 #include "Body.hpp"
 #include "FindServer.hpp"
+#include "Encapsulate.hpp"
 
 //Les constructeurs
 
@@ -16,7 +17,7 @@ HTTP::HTTP(int fd, std::vector<t_server> const &servers) : fd(fd), servers(serve
 }
 
 HTTP::HTTP(HTTP const &other) : fd(other.fd), servers(other.servers), \
-http_request(other.http_request), header_http(NULL)
+http_request(other.http_request), header_http(NULL), response(other.response)
 {
     if (other.header_http != NULL)
         header_http = new t_header(*other.header_http);
@@ -29,6 +30,7 @@ HTTP &HTTP::operator=(HTTP const &other)
         fd = other.fd;
         servers = other.servers;
         http_request = other.http_request;
+        response = other.response;
         delete header_http;
         header_http = NULL;
         if (other.header_http != NULL)
@@ -42,11 +44,11 @@ HTTP::~HTTP()
     delete header_http;
 }
 
-bool HTTP::build_request()
+bool HTTP::build_request(t_server const *&found, t_location const *&found_loc)
 /*il faut checker que toute la requete a ete recue;
 il faut identifier le serveur auquel la requete fait reference
 il faut trouver le bloc location qui importe
-il faudra gerer les erreures eventuelles*/
+les erreurs sont lancees (ErrorCodes) et gerees dans append_content*/
 {
     if (header_http == NULL && http_request.find("\r\n\r\n") == std::string::npos)
         return (false);
@@ -55,14 +57,63 @@ il faudra gerer les erreures eventuelles*/
     if (!body_complete())
         return (false);
     t_server const &server = FindServer::find_server(header_http, servers);
+    found = &server;
     if (server.max_body_size > 0 && \
         header_http->body_request.size() > static_cast<size_t>(server.max_body_size))
         throw ErrorCodes(413);
     t_location const &location = FindServer::find_location(header_http, server);
+    found_loc = &location;
 
     ExecuteRequest req(server, location, *header_http);
     req.execute();
+    if (location.cgi_pass)
+        response = Encapsulate::cgi_response(req.get_code(), req.get_output(), false);
+    else
+        response = Encapsulate::response(req.get_code(), req.get_output(), \
+            req.get_filename(), false);
     return (true);
+}
+
+void HTTP::build_error(ErrorCodes const &err, t_server const *server, \
+    t_location const *loc)
+{
+    int code = err.getcode();
+    std::string allow;
+
+    // redirection (ex: dossier demande sans '/' final)
+    if (code >= 300 && code < 400 && !err.get_uri().empty())
+    {
+        response = Encapsulate::redirect(code, err.get_uri());
+        return ;
+    }
+    // erreur avant d'avoir trouve le serveur : on prend le serveur par defaut
+    if (server == NULL && !servers.empty())
+        server = &servers[0];
+    if (loc != NULL)
+    {
+        if (loc->get)
+            allow += "GET";
+        if (loc->post)
+            allow += allow.empty() ? "POST" : ", POST";
+        if (loc->del)
+            allow += allow.empty() ? "DELETE" : ", DELETE";
+    }
+    response = Encapsulate::error(err, server, false, allow);
+}
+
+void HTTP::send_response()
+{
+    size_t total = 0;
+    ssize_t sent;
+
+    while (total < response.size())
+    {
+        sent = send(fd, response.c_str() + total, response.size() - total, MSG_NOSIGNAL);
+        if (sent <= 0)
+            break ;
+        total += sent;
+    }
+    response.clear();
 }
 
 bool HTTP::body_complete()
@@ -88,10 +139,28 @@ bool HTTP::body_complete()
     return (true);
 }
 
+/*renvoie true quand la reponse a ete envoyee : la connexion peut etre fermee*/
 bool HTTP::append_content(const char *cont, unsigned int size)
 {
+    t_server const *server = NULL;
+    t_location const *loc = NULL;
+
     http_request.append(cont, size);
-    return (build_request());
+    try
+    {
+        if (!build_request(server, loc))
+            return (false);
+    }
+    catch (ErrorCodes const &err)
+    {
+        build_error(err, server, loc);
+    }
+    catch (std::exception const &)
+    {
+        build_error(ErrorCodes(500), server, loc);
+    }
+    send_response();
+    return (true);
 }
 
 int HTTP::get_client_fd() const

@@ -18,8 +18,18 @@ ErrorCodes::ErrorCodes(ErrorCodes const &other) : _code(other.getcode()), messag
 
 ErrorCodes &ErrorCodes::operator=(ErrorCodes const &other)
 {
-    (void)other;
+    if (this != &other)
+    {
+        _code = other._code;
+        message = other.message;
+        URI = other.URI;
+    }
     return (*this);
+}
+
+std::string const &ErrorCodes::get_uri() const
+{
+    return (this->URI);
 }
 
 ErrorCodes::~ErrorCodes() throw()

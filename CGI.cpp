@@ -48,7 +48,7 @@ void CGI::extract_output(t_execute *exec, t_header const *head,\
     if (loc->cgi_pass != true)
         throw(ErrorCodes(500));
     make_headers(exec, head, loc);
-    make_char_stars(head, loc);
+    make_char_stars(exec, loc);
     fork_program(exec, head, loc);
 }
 
@@ -72,8 +72,7 @@ void CGI::transform_client_headers(t_header const *head)
         HelperFunctions::maxi(copy_of_header_name);
         copy_of_header_name.append("=");
         copy_of_header_name.append(it->second);
-        copy_of_header_name.append("\r\n");
-        if (it->first != "content-type" || it->second != "content-length")
+        if (it->first != "content-type" && it->first != "content-length")
             copy_of_header_name.insert(0, "HTTP_");
         cgi.content.push_back(copy_of_header_name); 
     }
@@ -82,22 +81,27 @@ void CGI::transform_client_headers(t_header const *head)
 void CGI::add_additionnal_headers(t_execute *exec, t_header const *head, \
 t_location const *loc)
 {
-    cgi.content.push_back("REQUEST_METHOD=" + head->method + "\r\n");
-    cgi.content.push_back("SCRIPT_NAME=" + loc->program_exec_cgi + "\r\n");
-    cgi.content.push_back("SCRIPT_FILENAME=" + exec->filename + "\r\n");
-    //will have to check content += "PATH_INFO=" + "\r\n"; //not sure what this is
-    cgi.content.push_back("QUERY_STRING=" + head->cgi_extension + "\r\n");
-    cgi.content.push_back("SERVER_PROTOCOL=" + head->protocol + "\r\n");
-    cgi.content.push_back("SERVER_NAME=" + head->host_name + "\r\n");
-    cgi.content.push_back("SERVER_PORT=" + HelperFunctions::ft_itoa(head->host_port) + "\r\n");
-    cgi.content.push_back("GATEWAY_INTERFACE=CGI/1.1\r\n");
-    cgi.content.push_back("REMOTE_ADDR=127.0.0.1\r\n");
-    cgi.content.push_back("REDIRECT_STATUS=200\r\n"); 
+    // pas de "\r\n" dans l'environnement : la valeur serait polluee
+    cgi.content.push_back("REQUEST_METHOD=" + head->method);
+    cgi.content.push_back("SCRIPT_NAME=" + head->URI);
+    cgi.content.push_back("SCRIPT_FILENAME=" + exec->filename);
+    cgi.content.push_back("PATH_INFO=" + head->URI);
+    cgi.content.push_back("REQUEST_URI=" + head->URI);
+    cgi.content.push_back("QUERY_STRING=" + head->cgi_extension);
+    cgi.content.push_back("CONTENT_LENGTH=" + HelperFunctions::ft_itoa(head->body_request.size()));
+    cgi.content.push_back("SERVER_PROTOCOL=" + head->protocol);
+    cgi.content.push_back("SERVER_NAME=" + head->host_name);
+    cgi.content.push_back("SERVER_PORT=" + HelperFunctions::ft_itoa(head->host_port));
+    cgi.content.push_back("SERVER_SOFTWARE=webserv/1.0");
+    cgi.content.push_back("GATEWAY_INTERFACE=CGI/1.1");
+    cgi.content.push_back("REMOTE_ADDR=127.0.0.1");
+    cgi.content.push_back("REDIRECT_STATUS=200");
+    (void)loc;
 }
 
-void CGI::make_char_stars(t_header const *head, t_location const *loc)
+void CGI::make_char_stars(t_execute const *exec, t_location const *loc)
 {
-    create_argv(head, loc);
+    create_argv(exec, loc);
     transform_to_c_str(cgi.argv_str, cgi.argv);
     transform_to_c_str(cgi.content, cgi.envp);
 }
@@ -126,10 +130,11 @@ void    CGI::transform_to_c_str(std::vector<std::string> const &vec, char **&des
     dest[i] = NULL;
 }
 
-void    CGI::create_argv(t_header const *head, t_location const *loc)
+void    CGI::create_argv(t_execute const *exec, t_location const *loc)
 {
+    // argv[1] = chemin reel du script sur le disque, pas l'URI
     cgi.argv_str.push_back(loc->program_exec_cgi);
-    cgi.argv_str.push_back(head->file_name);
+    cgi.argv_str.push_back(exec->filename);
 }
 
 void    CGI::free_char_lists(char **&cont)
@@ -165,25 +170,40 @@ void    CGI::fork_program(t_execute *exec, t_header const *head, t_location cons
         close(to_file[1]);
         close(to_server[0]);
         close(to_server[1]);
+        // on se place dans le dossier du script (imports relatifs)
+        std::string dir = exec->filename.substr(0, exec->filename.rfind('/') + 1);
+        if (!dir.empty())
+            chdir(dir.c_str());
         execve(loc->program_exec_cgi.c_str(), &cgi.argv[0], &cgi.envp[0]);
+        // execve a echoue : le fils ne doit surtout pas continuer le serveur
+        _exit(127);
     }
     close(to_file[0]);
+    if (child == -1)
+    {
+        close(to_file[1]);
+        close(to_server[0]);
+        close(to_server[1]);
+        throw(ErrorCodes(500));
+    }
     write(to_file[1], head->body_request.c_str(), head->body_request.size());
     close(to_file[1]);
 
     close(to_server[1]);
-    size_t total = 0;
+    ssize_t total = 0;
     while (true)
     {
-        bzero(buffer, 4096);
         total = read(to_server[0], buffer, 4096);
-        if (total == 0)
+        if (total <= 0)
             break;
         exec->output.append(buffer, total);
     }
     close(to_server[0]);
     int status;
     waitpid(child, &status, 0);
+    // script plante ou introuvable : 502 Bad Gateway
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        throw(ErrorCodes(502));
 }
 
 /*

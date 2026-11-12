@@ -30,15 +30,16 @@ void    ServerParser::check_cgi(t_header *head)
 {
     size_t index;
 
+    // separe "/chemin?query" : URI garde le chemin, cgi_extension la query string
     index = head->URI.find('?');
     if (index == std::string::npos)
+    {
+        head->file_name = head->URI;
         return;
-    std::istringstream split(head->URI);
-
-    getline(split, head->file_name, '?');
-    HelperFunctions::trim(head->file_name, " \r\n?");
-    getline(split, head->cgi_extension);
-    HelperFunctions::trim(head->cgi_extension, " \r\n?");
+    }
+    head->cgi_extension = head->URI.substr(index + 1);
+    head->URI.erase(index);
+    head->file_name = head->URI;
 }
 
 void    ServerParser::parse_headers(std::stringstream &val, t_header *header)

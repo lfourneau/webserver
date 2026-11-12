@@ -187,21 +187,23 @@ void    SetUpSocket::monitor_connections()
                         std::memset(buffer, 0, 4096);
                         int total_read;
                         total_read = recv(i, buffer, sizeof(buffer) - 1, 0);
-                        if (total_read == -1)
-                            throw(SocketSetUpFail("recv() has failed"));
-                        if (total_read == 0)
+                        // client deconnecte ou erreur : on ferme seulement ce client
+                        if (total_read <= 0)
                         {
                             delete_vector(list_files, &HTTP::get_client_fd, i);
-                            FD_CLR(i, &keep); 
+                            FD_CLR(i, &keep);
+                            close(i);
                         }
                         else
                         {
                             HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
 
+                            // reponse envoyee (Connection: close) : on ferme le socket
                             if (structure.append_content(buffer, total_read))
                             {
                                 delete_vector(list_files, &HTTP::get_client_fd, i);
-                                FD_CLR(i, &keep); 
+                                FD_CLR(i, &keep);
+                                close(i);
                             }
                         }
                     }
