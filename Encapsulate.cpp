@@ -21,76 +21,80 @@ std::string Encapsulate::cgi_response(int code, std::string const &cgi_output, \
     bool keep_alive)
 {
     t_headers headers;
-    std::string body = cgi_output;
-    size_t end = cgi_output.find("\r\n\r\n");
-    size_t sep = 4;
+    std::string body;
 
-    if (end == std::string::npos)
-    {
-        end = cgi_output.find("\n\n");
-        sep = 2;
-    }
-    // le script a ecrit ses propres headers : on les recupere
-    if (end != std::string::npos && cgi_output.substr(0, end).find(':') != std::string::npos
-        && cgi_output.substr(0, end).find('<') == std::string::npos)
-    {
-        std::istringstream flux(cgi_output.substr(0, end));
-        std::string line;
-
-        while (std::getline(flux, line))
-        {
-            HelperFunctions::trim_right(line, "\r");
-            size_t colon = line.find(':');
-            if (colon == std::string::npos)
-                continue;
-            std::string key = line.substr(0, colon);
-            std::string value = line.substr(colon + 1);
-            HelperFunctions::trim(value, " \t");
-            std::string lower = key;
-            HelperFunctions::mini(lower);
-            if (lower == "status")
-                transform_to_num(value, code);
-            else if (lower == "content-type")
-                headers["Content-Type"] = value;
-            else if (lower != "content-length")
-                headers[key] = value;
-        }
-        body = cgi_output.substr(end + sep);
-    }
+    split_cgi_output(cgi_output, headers, body, code);
     if (headers.find("Content-Type") == headers.end())
         headers["Content-Type"] = "text/html; charset=utf-8";
     headers["Connection"] = keep_alive ? "keep-alive" : "close";
     return (assemble(code, headers, body));
 }
 
-std::string Encapsulate::error(ErrorCodes const &err, t_server const *serv, bool keep_alive, \
+/*separe les headers ecrits par le script (s'il y en a) du corps de la page*/
+void Encapsulate::split_cgi_output(std::string const &cgi_output, t_headers &headers, \
+    std::string &body, int &code)
+{
+    size_t end = cgi_output.find("\r\n\r\n");
+    size_t sep = 4;
+
+    body = cgi_output;
+    if (end == std::string::npos)
+    {
+        end = cgi_output.find("\n\n");
+        sep = 2;
+    }
+    if (end == std::string::npos || cgi_output.substr(0, end).find(':') == std::string::npos
+        || cgi_output.substr(0, end).find('<') != std::string::npos)
+        return ;
+
+    std::istringstream flux(cgi_output.substr(0, end));
+    std::string line;
+
+    while (std::getline(flux, line))
+    {
+        HelperFunctions::trim_right(line, "\r");
+        size_t colon = line.find(':');
+        if (colon == std::string::npos)
+            continue;
+        std::string key = line.substr(0, colon);
+        std::string value = line.substr(colon + 1);
+        HelperFunctions::trim(value, " \t");
+        std::string lower = key;
+        HelperFunctions::mini(lower);
+        if (lower == "status")
+            transform_to_num(value, code);
+        else if (lower == "content-type")
+            headers["Content-Type"] = value;
+        else if (lower != "content-length")
+            headers[key] = value;
+    }
+    body = cgi_output.substr(end + sep);
+}
+
+/*reponse d'erreur avec le corps deja prepare par HTTP (fichier error_page,
+script CGI ou rien). corps vide : page codee en dur*/
+std::string Encapsulate::error(int code, std::string const &body, bool keep_alive, \
     std::string const &allow)
 {
     t_headers headers;
-    std::string body;
-    int code = err.getcode();
 
-    if (serv != NULL)
-    {
-        std::map<int, std::string>::const_iterator it = serv->error_files.find(code);
-
-        if (it != serv->error_files.end())
-        {
-            std::string path = it->second;
-            if (!path.empty() && path[0] != '/')
-                path = serv->server_repo + "/" + path;
-            if (!read_error_file(path, body))
-                body.clear();
-        }
-    }
-    if (body.empty())
-        body = default_error_page(code);
     headers["Content-Type"] = "text/html; charset=utf-8";
     headers["Connection"] = keep_alive ? "keep-alive" : "close";
-    // methodes autorisees par le bloc location (obligatoire pour une 405)
     if (code == 405)
         headers["Allow"] = allow;
-    return (assemble(code, headers, body));
+    return (assemble(code, headers, body.empty() ? default_error_page(code) : body));
+}
+
+/*corps d'une page d'erreur generee par CGI : on retire les headers du script.
+le code de la reponse reste celui de l'erreur, meme si le script envoie un Status*/
+std::string Encapsulate::error_body_from_cgi(std::string const &cgi_output)
+{
+    t_headers ignored;
+    std::string body;
+    int ignored_code = 0;
+
+    split_cgi_output(cgi_output, ignored, body, ignored_code);
+    return (body);
 }
 
 std::string Encapsulate::redirect(int code, std::string const &location)

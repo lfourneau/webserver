@@ -1,366 +1,289 @@
 #include "CGI.hpp"
 #include "HelperFunctions.hpp"
-#include <wait.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstring>
+#include <algorithm>
 
-CGI::CGI()
+CGI::CGI() : pid(-1), fd_in(-1), fd_out(-1), body(), body_sent(0), output(), \
+start_time(0), result(RUNNING)
 {
 }
 
-CGI::CGI(CGI const &other) : cgi(other.cgi)
-{
-    cgi.argv = NULL;
-    cgi.envp = NULL;
-    transform_to_c_str(this->cgi.argv_str, this->cgi.argv);
-    transform_to_c_str(this->cgi.content, this->cgi.envp);
-}
-
-CGI &CGI::operator=(CGI const &other)
-{
-    if (this != &other)
-    {
-        free_char_lists(cgi.argv);
-        free_char_lists(cgi.envp);
-        this->cgi = other.cgi;
-        cgi.argv = NULL;
-        cgi.envp = NULL;
-        transform_to_c_str(this->cgi.argv_str, this->cgi.argv);
-        transform_to_c_str(this->cgi.content, this->cgi.envp);
-    }
-    return (*this);
-}
-
+/*le client s'est deconnecte ou la reponse est partie : on ne laisse
+ni fd ouvert, ni processus zombie*/
 CGI::~CGI()
 {
-    free_char_lists(cgi.argv);
-    free_char_lists(cgi.envp);
+    close_fd(fd_in);
+    close_fd(fd_out);
+    kill_child();
 }
 
-void CGI::run(t_execute *exec, t_header const *head, t_location const *loc)
+/*lance le script. renvoie false si pipe() ou fork() echoue.
+seules les extremites gardees par le serveur passent en O_NONBLOCK :
+le script, lui, lit et ecrit normalement.
+in_script_dir : le script tourne dans son dossier (exige par le sujet pour
+les CGI du client). le chemin du script devient alors son simple nom, sinon
+un chemin relatif (root ./) ne serait plus valable apres le chdir.
+les scripts internes (erreurs, autoindex) restent dans le dossier du serveur
+pour que les chemins relatifs qu'on leur passe restent justes*/
+bool CGI::start(std::string const &prog, std::string const &script, \
+    std::vector<std::string> const &request_env_vars, std::string const &request_body, \
+    bool in_script_dir)
 {
-    CGI cgi_exec;
+    int to_cgi[2];
+    int from_cgi[2];
+    std::vector<std::string> argv_str;
+    std::vector<std::string> env = request_env_vars;
+    std::string dir;
+    std::string script_arg = script;
 
-    cgi_exec.extract_output(exec, head, loc);
+    if (in_script_dir && script.rfind('/') != std::string::npos)
+    {
+        dir = script.substr(0, script.rfind('/') + 1);
+        script_arg = script.substr(script.rfind('/') + 1);
+        for (size_t i = 0; i < env.size(); i++)
+        {
+            if (env[i].compare(0, 16, "SCRIPT_FILENAME=") == 0)
+                env[i] = "SCRIPT_FILENAME=" + script_arg;
+        }
+    }
+
+    if (pipe(to_cgi) == -1)
+        return (false);
+    if (pipe(from_cgi) == -1)
+    {
+        close(to_cgi[0]);
+        close(to_cgi[1]);
+        return (false);
+    }
+    argv_str.push_back(prog);
+    argv_str.push_back(script_arg);
+    char **argv = to_c_array(argv_str);
+    char **envp = to_c_array(env);
+
+    pid = fork();
+    if (pid == 0)
+    {
+        dup2(to_cgi[0], STDIN_FILENO);
+        dup2(from_cgi[1], STDOUT_FILENO);
+        close(to_cgi[0]);
+        close(to_cgi[1]);
+        close(from_cgi[0]);
+        close(from_cgi[1]);
+        // le script ne doit pas heriter des reglages de signaux du serveur
+        signal(SIGPIPE, SIG_DFL);
+        signal(SIGINT, SIG_DFL);
+        signal(SIGTERM, SIG_DFL);
+        // on se place dans le dossier du script (chemins relatifs)
+        if (!dir.empty() && chdir(dir.c_str()) == -1)
+            _exit(1);
+        execve(prog.c_str(), argv, envp);
+        // execve a echoue : le fils ne doit surtout pas continuer le serveur
+        _exit(127);
+    }
+    free_c_array(argv);
+    free_c_array(envp);
+    close(to_cgi[0]);
+    close(from_cgi[1]);
+    fd_in = to_cgi[1];
+    fd_out = from_cgi[0];
+    if (pid == -1)
+    {
+        close_fd(fd_in);
+        close_fd(fd_out);
+        return (false);
+    }
+    fcntl(fd_in, F_SETFL, O_NONBLOCK);
+    fcntl(fd_out, F_SETFL, O_NONBLOCK);
+    body = request_body;
+    body_sent = 0;
+    start_time = time(NULL);
+    result = RUNNING;
+    // pas de body : on ferme tout de suite, le script lit EOF sur stdin
+    if (body.empty())
+        close_fd(fd_in);
+    return (true);
 }
 
-void CGI::extract_output(t_execute *exec, t_header const *head,\
-     t_location const *loc)
+/*poll() a signale POLLOUT sur fd_in : un seul write, puis on rend la main*/
+void CGI::on_writable()
 {
-    if (loc->cgi_pass != true)
-        throw(ErrorCodes(500));
-    make_headers(exec, head, loc);
-    make_char_stars(exec, loc);
-    fork_program(exec, head, loc);
+    ssize_t written;
+
+    if (fd_in == -1)
+        return ;
+    written = write(fd_in, body.c_str() + body_sent, body.size() - body_sent);
+    // -1 : le script a ferme son stdin (ou est mort), inutile d'insister
+    if (written <= 0)
+    {
+        close_fd(fd_in);
+        return ;
+    }
+    body_sent += written;
+    if (body_sent >= body.size())
+        close_fd(fd_in);
 }
 
-void CGI::make_headers(t_execute *exec, t_header const *head,\
-t_location const *loc)
+/*poll() a signale POLLIN ou POLLHUP sur fd_out : un seul read.
+0 = EOF, le script a fini d'ecrire (ou a ferme sa sortie)*/
+void CGI::on_readable()
 {
-    transform_client_headers(head);
-    add_additionnal_headers(exec, head, loc);
+    char buffer[4096];
+    ssize_t total;
+
+    if (fd_out == -1)
+        return ;
+    total = read(fd_out, buffer, sizeof(buffer));
+    if (total > 0)
+    {
+        output.append(buffer, total);
+        return ;
+    }
+    close_fd(fd_out);
 }
 
-void CGI::transform_client_headers(t_header const *head)
+/*appele a chaque tour de boucle : timeout et fin du processus.
+waitpid(WNOHANG) ne bloque jamais : il renvoie 0 si le fils tourne encore*/
+CGI::e_result CGI::update(time_t now)
 {
+    int status;
+    pid_t ret;
+
+    if (result != RUNNING)
+        return (result);
+    if (now - start_time >= CGI_TIMEOUT)
+    {
+        close_fd(fd_in);
+        close_fd(fd_out);
+        kill_child();
+        result = TIMEOUT;
+        return (result);
+    }
+    // tant que la sortie n'est pas finie, on continue a lire
+    if (fd_out != -1)
+        return (RUNNING);
+    ret = waitpid(pid, &status, WNOHANG);
+    if (ret == 0)
+        return (RUNNING);
+    pid = -1;
+    close_fd(fd_in);
+    if (ret == -1 || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        result = FAILURE;
+    else
+        result = SUCCESS;
+    return (result);
+}
+
+int CGI::get_fd_in() const
+{
+    return (fd_in);
+}
+
+int CGI::get_fd_out() const
+{
+    return (fd_out);
+}
+
+/*sortie terminee mais processus pas encore recupere : la boucle doit
+revenir vite (petit timeout de poll) pour appeler update()*/
+bool CGI::waiting_for_exit() const
+{
+    return (result == RUNNING && fd_out == -1);
+}
+
+std::string const &CGI::get_output() const
+{
+    return (output);
+}
+
+std::string CGI::interpreter_for(std::string const &script)
+{
+    size_t dot = script.rfind('.');
+
+    if (dot == std::string::npos)
+        return ("");
+    if (script.substr(dot) == ".py")
+        return (PYTHON_INTERPRETER);
+    if (script.substr(dot) == ".php")
+        return (PHP_INTERPRETER);
+    return ("");
+}
+
+/*variables d'environnement d'une requete CGI du client (RFC 3875)*/
+std::vector<std::string> CGI::request_env(t_execute const *exec, t_header const *head)
+{
+    std::vector<std::string> env;
     std::map<std::string, std::string>::const_iterator it = head->headers.begin();
 
     for (; it != head->headers.end(); ++it)
     {
-        std::string copy_of_header_name;
+        std::string name = it->first;
 
-        copy_of_header_name = it->first;
-        std::replace(copy_of_header_name.begin(), copy_of_header_name.end(), '-', '_');
-        HelperFunctions::maxi(copy_of_header_name);
-        copy_of_header_name.append("=");
-        copy_of_header_name.append(it->second);
+        std::replace(name.begin(), name.end(), '-', '_');
+        HelperFunctions::maxi(name);
         if (it->first != "content-type" && it->first != "content-length")
-            copy_of_header_name.insert(0, "HTTP_");
-        cgi.content.push_back(copy_of_header_name); 
+            name.insert(0, "HTTP_");
+        env.push_back(name + "=" + it->second);
     }
-}
-
-void CGI::add_additionnal_headers(t_execute *exec, t_header const *head, \
-t_location const *loc)
-{
     // pas de "\r\n" dans l'environnement : la valeur serait polluee
-    cgi.content.push_back("REQUEST_METHOD=" + head->method);
-    cgi.content.push_back("SCRIPT_NAME=" + head->URI);
-    cgi.content.push_back("SCRIPT_FILENAME=" + exec->filename);
-    cgi.content.push_back("PATH_INFO=" + head->URI);
-    cgi.content.push_back("REQUEST_URI=" + head->URI);
-    cgi.content.push_back("QUERY_STRING=" + head->cgi_extension);
-    cgi.content.push_back("CONTENT_LENGTH=" + HelperFunctions::ft_itoa(head->body_request.size()));
-    cgi.content.push_back("SERVER_PROTOCOL=" + head->protocol);
-    cgi.content.push_back("SERVER_NAME=" + head->host_name);
-    cgi.content.push_back("SERVER_PORT=" + HelperFunctions::ft_itoa(head->host_port));
-    cgi.content.push_back("SERVER_SOFTWARE=webserv/1.0");
-    cgi.content.push_back("GATEWAY_INTERFACE=CGI/1.1");
-    cgi.content.push_back("REMOTE_ADDR=127.0.0.1");
-    cgi.content.push_back("REDIRECT_STATUS=200");
-    (void)loc;
+    env.push_back("REQUEST_METHOD=" + head->method);
+    env.push_back("SCRIPT_NAME=" + head->URI);
+    env.push_back("SCRIPT_FILENAME=" + exec->filename);
+    env.push_back("PATH_INFO=" + head->URI);
+    env.push_back("REQUEST_URI=" + head->URI);
+    env.push_back("QUERY_STRING=" + head->cgi_extension);
+    env.push_back("CONTENT_LENGTH=" + HelperFunctions::ft_itoa(head->body_request.size()));
+    env.push_back("SERVER_PROTOCOL=" + head->protocol);
+    env.push_back("SERVER_NAME=" + head->host_name);
+    env.push_back("SERVER_PORT=" + HelperFunctions::ft_itoa(head->host_port));
+    env.push_back("SERVER_SOFTWARE=webserv/1.0");
+    env.push_back("GATEWAY_INTERFACE=CGI/1.1");
+    env.push_back("REMOTE_ADDR=127.0.0.1");
+    env.push_back("REDIRECT_STATUS=200");
+    return (env);
 }
 
-void CGI::make_char_stars(t_execute const *exec, t_location const *loc)
+void CGI::close_fd(int &fd)
 {
-    create_argv(exec, loc);
-    transform_to_c_str(cgi.argv_str, cgi.argv);
-    transform_to_c_str(cgi.content, cgi.envp);
+    if (fd != -1)
+        close(fd);
+    fd = -1;
 }
 
-
-void    CGI::transform_to_c_str(std::vector<std::string> const &vec, char **&dest)
+/*SIGKILL puis waitpid : le fils meurt immediatement, l'attente est
+instantanee et evite un processus zombie*/
+void CGI::kill_child()
 {
-    free_char_lists(dest);
+    int status;
 
-    if (vec.size() == 0)
-        return;
-    
-    dest = new char *[vec.size() + 1];
-
-    std::vector<std::string>::const_iterator it;
-    unsigned int i = 0;
-
-    for (it = vec.begin(); it != vec.end(); it++)
-    {
-        char *copy = new char[it->size() + 1];
-
-        std::strcpy(copy, it->c_str());
-        dest[i] = copy;
-        i++;
-    }
-    dest[i] = NULL;
-}
-
-void    CGI::create_argv(t_execute const *exec, t_location const *loc)
-{
-    // argv[1] = chemin reel du script sur le disque, pas l'URI
-    cgi.argv_str.push_back(loc->program_exec_cgi);
-    cgi.argv_str.push_back(exec->filename);
-}
-
-void    CGI::free_char_lists(char **&cont)
-{
-    if (cont == NULL)
+    if (pid <= 0)
         return ;
-    
-    unsigned int i = 0;
-    while (cont[i] != NULL)
+    kill(pid, SIGKILL);
+    waitpid(pid, &status, 0);
+    pid = -1;
+}
+
+char **CGI::to_c_array(std::vector<std::string> const &vec)
+{
+    char **array = new char *[vec.size() + 1];
+
+    for (size_t i = 0; i < vec.size(); i++)
     {
-        delete[] cont[i];
-        cont[i] = NULL;
-        i++;
+        array[i] = new char[vec[i].size() + 1];
+        std::strcpy(array[i], vec[i].c_str());
     }
-    delete[] cont;
-    cont = NULL;
+    array[vec.size()] = NULL;
+    return (array);
 }
-void    CGI::fork_program(t_execute *exec, t_header const *head, t_location const *loc)
+
+void CGI::free_c_array(char **array)
 {
-    int to_file[2];
-    int to_server[2];
-    pid_t child;
-    char buffer[4096];
-
-    pipe(to_file);
-    pipe(to_server);
-    child  = fork();
-    if (child == 0) 
-    {
-        dup2(to_file[0], STDIN_FILENO);
-        dup2(to_server[1], STDOUT_FILENO);
-        close(to_file[0]);
-        close(to_file[1]);
-        close(to_server[0]);
-        close(to_server[1]);
-        // on se place dans le dossier du script (imports relatifs)
-        std::string dir = exec->filename.substr(0, exec->filename.rfind('/') + 1);
-        if (!dir.empty())
-            chdir(dir.c_str());
-        execve(loc->program_exec_cgi.c_str(), &cgi.argv[0], &cgi.envp[0]);
-        // execve a echoue : le fils ne doit surtout pas continuer le serveur
-        _exit(127);
-    }
-    close(to_file[0]);
-    if (child == -1)
-    {
-        close(to_file[1]);
-        close(to_server[0]);
-        close(to_server[1]);
-        throw(ErrorCodes(500));
-    }
-    write(to_file[1], head->body_request.c_str(), head->body_request.size());
-    close(to_file[1]);
-
-    close(to_server[1]);
-    ssize_t total = 0;
-    while (true)
-    {
-        total = read(to_server[0], buffer, 4096);
-        if (total <= 0)
-            break;
-        exec->output.append(buffer, total);
-    }
-    close(to_server[0]);
-    int status;
-    waitpid(child, &status, 0);
-    // script plante ou introuvable : 502 Bad Gateway
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-        throw(ErrorCodes(502));
+    if (array == NULL)
+        return ;
+    for (size_t i = 0; array[i] != NULL; i++)
+        delete[] array[i];
+    delete[] array;
 }
-
-/*
-void    CGI::basic_envp(std::vector<std::string> &vec)
-{
-    vec.push_back(TransformToString() << "SERVER_NAME=" << info_request["Host_name"]);
-    vec.push_back(TransformToString() << "SERVER_PORT=" << info_request["Host_port"]);
-    vec.push_back("HTTP_GATEWAY_INTERFACE=CGI/1.1");
-    vec.push_back(TransformToString() << "HTTP_REQUEST_METHOD=" << info_request["Method"]);
-    vec.push_back(TransformToString() << "HTTP_PROTOCOL_VERSION=" << info_request["Protocol"]);
-    vec.push_back("HTTP_SERVER_SOFTWARE=webserv/1.0");
-    vec.push_back(TransformToString() << "HTTP_REMOTE_ADDR=" << associated_fd);
-}
-*/
-
-/*
-CGI::CGI(HTTP const &other) : HTTP(other) 
-{
-    exec_program = "/usr/bin/python3";
-}
-
-CGI::CGI(CGI const &other) : HTTP(other)
-{
-    (void)other;
-}
-
-CGI &CGI::operator=(CGI const &other)
-{
-    (void)other;
-    return (*this);
-}
-
-CGI::~CGI() throw()
-{
-    free_char_lists();
-}
-
-void    CGI::parse_input()
-{ 
-    std::vector<std::string> string_vector;
-    script_name(string_vector);
-    sup_post(string_vector);
-    basic_envp(string_vector);
-    transform_to_c_str(string_vector);
-    create_argv();
-}
-
-void    CGI::fork_program()
-{
-    int to_file[2];
-    int to_server[2];
-    pid_t child;
-    char buffer[4096];
-
-    pipe(to_file);
-    pipe(to_server);
-    child  = fork();
-    if (child == 0) 
-    {
-        dup2(to_file[0], STDIN_FILENO);
-        dup2(to_server[1], STDOUT_FILENO);
-        close(to_file[0]);
-        close(to_file[1]);
-        close(to_server[0]);
-        close(to_server[1]);
-        execve(exec_program.c_str(), &argv[0], &envp[0]);
-    }
-    close(to_file[0]);
-    write(to_file[1], body.c_str(), body.size());
-    close(to_file[1]);
-
-    close(to_server[1]);
-    size_t total = 0;
-    while (true)
-    {
-        bzero(buffer, 4096);
-        total = read(to_server[0], buffer, 4096);
-        if (total == 0)
-            break;
-        output_cgi.append(buffer, total);
-    }
-    close(to_server[0]);
-    int status;
-    waitpid(child, &status, 0);
-}
-
-void    CGI::basic_envp(std::vector<std::string> &vec)
-{
-    vec.push_back(TransformToString() << "SERVER_NAME=" << info_request["Host_name"]);
-    vec.push_back(TransformToString() << "SERVER_PORT=" << info_request["Host_port"]);
-    vec.push_back("HTTP_GATEWAY_INTERFACE=CGI/1.1");
-    vec.push_back(TransformToString() << "HTTP_REQUEST_METHOD=" << info_request["Method"]);
-    vec.push_back(TransformToString() << "HTTP_PROTOCOL_VERSION=" << info_request["Protocol"]);
-    vec.push_back("HTTP_SERVER_SOFTWARE=webserv/1.0");
-    vec.push_back(TransformToString() << "HTTP_REMOTE_ADDR=" << associated_fd);
-}
-
-void    CGI::script_name(std::vector<std::string> &vec)
-{
-    info_request["File"] = HelperFunctions::trim(info_request["File"], " \r\n\t");
-    info_request["CGI params"] = HelperFunctions::trim(info_request["CGI params"], " \r\n\t");
-    vec.push_back(TransformToString() << "HTTP_SCRIPT_NAME=" << info_request["File"]);
-    vec.push_back(TransformToString() << "HTTP_QUERY_STRING=" << info_request["CGI params"]);
-}
-
-void    CGI::sup_post(std::vector<std::string> &vec)
-{
-    if (info_request["Method"] == "POST")
-    {
-        vec.push_back(TransformToString() << "CONTENT_LENGTH=" << content.size());
-        vec.push_back(TransformToString() << "CONTENT_TYPE=" << find_type());
-    
-    }
-}
-
-std::string const CGI::find_type() const
-{
-    //le serveur n'accepte que du python pour l'instant donc on se contente de ca
-
-    return  ("text/x-python");
-}
-
-std::string CGI::get_output()
-{
-    parse_input();
-    fork_program();
-    return (output_cgi);
-}
-
-void    CGI::transform_to_c_str(std::vector<std::string> const &vec)
-{
-    free_char_lists();
-
-    std::vector<std::string>::const_iterator it;
-
-    for (it = vec.begin(); it != vec.end(); it++)
-    {
-        char *copy = new char[it->size() + 1];
-
-        std::strcpy(copy, it->c_str());
-        envp.push_back(copy);
-    }
-    envp.push_back(NULL);
-}
-
-void    CGI::create_argv()
-{
-    argv.push_back(const_cast<char *>(exec_program.c_str()));
-    argv.push_back(const_cast<char *>(info_request["File"].c_str()));
-    argv.push_back(NULL);
-}
-
-void    CGI::free_char_lists()
-{
-    for (long unsigned int i = 0; i < envp.size() ; i++)
-    {
-        delete envp[i];
-        envp[i] = NULL;
-    }
-}*/

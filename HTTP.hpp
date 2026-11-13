@@ -11,15 +11,15 @@
 # include <utility>
 # include <sys/stat.h>
 # include <fcntl.h>
-# include <string.h>
+# include <cstring>
 # include <sys/socket.h>
-# include <stdio.h>
-# include <stdlib.h>
+# include <cstdio>
+# include <cstdlib>
 # include <map>
+# include <ctime>
 # include "ServerConfig.hpp"
 # include "ErrorCodes.hpp"
 
-# define PATH_FILES_DIRECTORY "/home/lfournea/Documents/webserver"
 
 enum e_status
 {
@@ -45,29 +45,75 @@ typedef struct s_header
 
 } t_header;
 
+class CGI;
+
+// sans activite pendant ce temps (en secondes), la connexion est fermee
+# define CLIENT_TIMEOUT 30
+// taille maximale de la ligne de requete + headers (431 au-dela)
+# define MAX_HEADER_SIZE 16384
+
+/*une connexion client. elle ne bloque jamais : chaque methode on_* fait au
+plus un recv/send/read/write, et seulement quand poll() a dit que c'etait
+possible. etats successifs :
+READING_REQUEST  -> poll surveille POLLIN sur le socket
+RUNNING_CGI      -> poll surveille les pipes du script, pas le socket
+SENDING_RESPONSE -> poll surveille POLLOUT sur le socket*/
 class HTTP
 {
     public:
+    enum e_conn_state { READING_REQUEST, RUNNING_CGI, SENDING_RESPONSE };
+    enum e_cgi_purpose { CGI_REQUEST, CGI_AUTOINDEX, CGI_ERROR_PAGE };
+
     HTTP(int fd, std::vector<t_server> const &other);
-    HTTP(HTTP const &other);
-    HTTP    &operator=(HTTP const &other);
     ~HTTP();
     int get_client_fd() const;
-    bool    append_content(const char *cont, unsigned int size);
-    bool    body_complete();
+    short client_events() const;
+    int cgi_fd_in() const;
+    int cgi_fd_out() const;
+    unsigned int get_cgi_generation() const;
+    bool needs_fast_tick() const;
+
+    bool on_readable();
+    bool on_writable();
+    void on_cgi_event(int pipe_fd, short revents);
+    bool on_tick(time_t now);
 
     private:
+    HTTP(HTTP const &other);
+    HTTP    &operator=(HTTP const &other);
 
     int fd;
-    std::vector<t_server> servers;
+    // blocs server qui ecoutent sur l'interface:port de cette connexion
+    std::vector<t_server> const *servers;
     std::string http_request;
     t_header *header_http;
     std::string response;
+    size_t response_sent;
+    e_conn_state state;
+    time_t last_activity;
+    t_server const *server;
+    t_location const *loc;
 
-    bool    build_request(t_server const *&server, t_location const *&loc);
-    void    build_error(ErrorCodes const &err, t_server const *server, \
-        t_location const *loc);
-    void    send_response();
+    CGI *cgi;
+    e_cgi_purpose cgi_purpose;
+    unsigned int cgi_generation;
+    int error_code;
+    std::string error_allow;
+    std::string autoindex_dir;
+    std::string autoindex_uri;
+
+    void    handle_request();
+    bool    build_request();
+    bool    body_complete();
+    void    start_error(ErrorCodes const &err);
+    bool    start_cgi(std::string const &prog, std::string const &script, \
+        std::vector<std::string> const &env, std::string const &body, \
+        e_cgi_purpose purpose);
+    void    check_cgi(time_t now);
+    void    finish_cgi(int result);
+    void    autoindex_fallback();
+    void    set_response(std::string const &content);
+    std::string allowed_methods() const;
 };
 //class HTTP
 //{

@@ -10,16 +10,11 @@ type(SOCK_STREAM), protocol(0), return_getaddr_info(NULL), config(config)
     parameter.ai_socktype = type;
     parameter.ai_flags = AI_PASSIVE;
 
-    try
-    {
-        for_each_block();
-        monitor_connections();
-    }
-    catch(const std::exception& e)
-    {
-        std::cerr << e.what() << '\n';
-    }
-    
+    // une erreur ici (port deja pris, interface inconnue...) remonte jusqu'au
+    // main, qui l'affiche et quitte avec un code d'erreur
+    for_each_block();
+    check_virtual_hosts();
+    monitor_connections();
 }
 
 SetUpSocket::SetUpSocket(SetUpSocket const &other) : domain(other.domain), \
@@ -36,15 +31,17 @@ SetUpSocket &SetUpSocket::operator=(SetUpSocket const &other)
 
 SetUpSocket::~SetUpSocket() throw()
 {
-    if (this->return_getaddr_info != NULL)
-    {
-        std::vector<struct addrinfo *>::iterator it = structures_addr_info.begin();
+    std::map<int, HTTP *>::iterator client = clients.begin();
 
-        for (; it != structures_addr_info.end(); ++it)
-        {
-            freeaddrinfo(this->return_getaddr_info);
-        }
+    for (; client != clients.end(); ++client)
+    {
+        delete client->second;
+        close(client->first);
     }
+    for (std::map<int, int>::iterator it = fds_listen.begin(); it != fds_listen.end(); ++it)
+        close(it->first);
+    for (size_t i = 0; i < structures_addr_info.size(); i++)
+        freeaddrinfo(structures_addr_info[i]);
 }
 
 void    SetUpSocket::for_each_block()
@@ -58,157 +55,325 @@ void    SetUpSocket::for_each_block()
     }
 }
 
+/*un socket d'ecoute par paire interface:port. plusieurs blocs server peuvent
+declarer la meme paire : ils partagent le socket, et le header Host choisit
+le bloc (virtual hosts, voir check_virtual_hosts)*/
 void    SetUpSocket::get_addr(t_server const &serv)
 {
-    std::set<int>::const_iterator it;
-    std::set<int>::const_iterator end = serv.open_ports.end();
+    std::vector<std::pair<std::string, int> >::const_iterator it;
+    std::set<int> used_by_this_server;
 
-    for (it = serv.open_ports.begin(); it != end; it++)
+    for (it = serv.listen_addrs.begin(); it != serv.listen_addrs.end(); ++it)
     {
-        check_port_not_already_used(*it);
         struct addrinfo *new_addrinfo = NULL;
         std::ostringstream to_string;
-        
-        if (check_port_not_already_used(*it))
-            continue;
-        to_string << *it;
-        if (getaddrinfo(NULL, to_string.str().c_str(), &this->parameter,\
-         &new_addrinfo))
-            throw(SocketSetUpFail("getaddrinfo has failed"));
-        structures_addr_info.push_back(new_addrinfo);
+        std::string name;
+        int fd;
 
-        struct addrinfo *next = new_addrinfo->ai_next;
-        while (true)
+        to_string << it->second;
+        if (it->first.empty())
         {
-            socket_creation(new_addrinfo, *it);
-            if (next == NULL)
-                break;
-            new_addrinfo = next;
-            next = new_addrinfo->ai_next;
+            // toutes les interfaces : socket IPv6 "dual-stack" qui accepte aussi
+            // l'IPv4. sans lui, "localhost" resolu en ::1 (siege, navigateurs)
+            // serait refuse
+            name = "0.0.0.0:" + to_string.str();
+            if (bound_addrs.count(name))
+                fd = bound_addrs[name];
+            else
+            {
+                fd = wildcard_socket(it->second, name);
+                bound_addrs[name] = fd;
+            }
         }
+        else
+        {
+            if (getaddrinfo(it->first.c_str(), to_string.str().c_str(), \
+                &this->parameter, &new_addrinfo) != 0)
+                throw(SocketSetUpFail("listen " + it->first + ":" + to_string.str() \
+                    + ": unknown interface"));
+            structures_addr_info.push_back(new_addrinfo);
+            // nom a partir de l'adresse resolue : "localhost" et "127.0.0.1" sont la meme
+            struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(new_addrinfo->ai_addr);
+            unsigned char *bytes = reinterpret_cast<unsigned char *>(&addr->sin_addr);
+            std::ostringstream ip_str;
+            ip_str << static_cast<int>(bytes[0]) << "." << static_cast<int>(bytes[1]) << "."
+                << static_cast<int>(bytes[2]) << "." << static_cast<int>(bytes[3]);
+            name = ip_str.str() + ":" + to_string.str();
+            if (bound_addrs.count(name))
+                fd = bound_addrs[name];
+            else
+            {
+                // la premiere adresse IPv4 renvoyee suffit
+                fd = socket_creation(new_addrinfo->ai_family, new_addrinfo->ai_addr, \
+                    new_addrinfo->ai_addrlen, it->second, name);
+                bound_addrs[name] = fd;
+            }
+        }
+        // "listen 8080;" ecrit deux fois dans le meme bloc : une seule entree
+        if (used_by_this_server.count(fd))
+            continue;
+        used_by_this_server.insert(fd);
+        listen_servers[fd].push_back(serv);
     }
 }
 
-bool    SetUpSocket::check_port_not_already_used(int port)
-{
-    std::map<int, int>::iterator it = fds_listen.begin();
-
-    for (; it != fds_listen.end(); ++it)
-    {
-        if (it->second == port)
-            return (true);
-    }
-    return (false);
-}
-
-void    SetUpSocket::socket_creation(struct addrinfo *info, int i)
+int     SetUpSocket::socket_creation(int family, struct sockaddr *addr, socklen_t addr_len, \
+    int port, std::string const &name)
 {
     int new_listen_fd;
 
-    new_listen_fd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    new_listen_fd = socket(family, SOCK_STREAM, 0);
     if (new_listen_fd == -1)
-        throw (SocketSetUpFail("socket creation has failed"));
+        throw (SocketSetUpFail("listen " + name + ": socket creation has failed"));
+    fds_listen[new_listen_fd] = port;
     set_sock_non_crash(new_listen_fd);
-    bind_socket(new_listen_fd, info);
-    listen_socket(new_listen_fd);
-    fds_listen[new_listen_fd] = i;
+    set_non_blocking(new_listen_fd);
+    if (family == AF_INET6)
+    {
+        int no = 0;
+
+        setsockopt(new_listen_fd, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
+    }
+    if (bind(new_listen_fd, addr, addr_len))
+        throw(SocketSetUpFail("listen " + name + ": bind failed (address already in use?)"));
+    if (::listen(new_listen_fd, SOMAXCONN))
+        throw(SocketSetUpFail("listen " + name + ": listen failed"));
+    return (new_listen_fd);
+}
+
+/*"listen 8080;" : [::]:8080 en dual-stack (IPv6 + IPv4).
+si l'IPv6 est desactive sur la machine, repli sur 0.0.0.0:8080*/
+int     SetUpSocket::wildcard_socket(int port, std::string const &name)
+{
+    struct sockaddr_in6 addr6;
+    struct sockaddr_in addr4;
+    int probe;
+
+    probe = socket(AF_INET6, SOCK_STREAM, 0);
+    if (probe != -1)
+    {
+        close(probe);
+        std::memset(&addr6, 0, sizeof(addr6));
+        addr6.sin6_family = AF_INET6;
+        addr6.sin6_addr = in6addr_any;
+        addr6.sin6_port = htons(port);
+        return (socket_creation(AF_INET6, reinterpret_cast<struct sockaddr *>(&addr6), \
+            sizeof(addr6), port, name));
+    }
+    std::memset(&addr4, 0, sizeof(addr4));
+    addr4.sin_family = AF_INET;
+    addr4.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr4.sin_port = htons(port);
+    return (socket_creation(AF_INET, reinterpret_cast<struct sockaddr *>(&addr4), \
+        sizeof(addr4), port, name));
+}
+
+/*plusieurs blocs server sur le meme interface:port (virtual hosts) :
+ils doivent se distinguer par server_name. deux blocs sans server_name,
+ou avec un nom commun, seraient ambigus : erreur de configuration*/
+void    SetUpSocket::check_virtual_hosts()
+{
+    std::map<std::string, int>::const_iterator it;
+
+    for (it = bound_addrs.begin(); it != bound_addrs.end(); ++it)
+    {
+        std::vector<t_server> const &list = listen_servers[it->second];
+        std::set<std::string> names;
+        bool unnamed = false;
+
+        for (size_t i = 0; i < list.size(); i++)
+        {
+            if (list[i].server_names.empty())
+            {
+                if (unnamed)
+                    throw(SocketSetUpFail("listen " + it->first \
+                        + ": several server blocks without server_name"));
+                unnamed = true;
+            }
+            for (size_t j = 0; j < list[i].server_names.size(); j++)
+            {
+                if (!names.insert(list[i].server_names[j]).second)
+                    throw(SocketSetUpFail("listen " + it->first + ": server_name "
+                        + list[i].server_names[j] + " is used twice"));
+            }
+        }
+    }
 }
 
 void    SetUpSocket::set_sock_non_crash(int &file_desc)
 {
     int option = true;
 
+    // le fd est deja dans fds_listen : le destructeur le fermera
     if (setsockopt(file_desc, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
-    {
-        close(file_desc);
-        throw(SocketSetUpFail("sockoption has failed"));
-    }
+        throw(SocketSetUpFail("setsockopt has failed"));
 }
 
-void    SetUpSocket::bind_socket(int &file_desc, struct addrinfo *info)
+/*O_NONBLOCK : recv/send/accept rendent la main immediatement au lieu
+d'attendre. poll() garantit deja qu'il y a quelque chose a faire, mais sans
+ce flag un send() trop gros ou un client lent pourrait quand meme bloquer
+tout le serveur*/
+void    SetUpSocket::set_non_blocking(int fd)
 {
-    if (bind(file_desc, info->ai_addr, info->ai_addrlen))
-        throw(SocketSetUpFail("binding has failed"));
+    fcntl(fd, F_SETFL, O_NONBLOCK);
 }
 
-void    SetUpSocket::listen_socket(int &file_desc)
-{
-    //somaxconn defines the maximum concurrent connections the server
-    //can receive
-    if (listen(file_desc, SOMAXCONN))
-        throw(SocketSetUpFail("listening has failed"));
-}
-
-void    SetUpSocket::set_connections_fd_set(fd_set &keep)
-{
-    std::map<int, int>::const_iterator it = fds_listen.begin();
-
-    for (; it != fds_listen.end(); ++it)
-    {
-        FD_SET(it->first, &keep);
-    }
-}
-
+/*la boucle principale : un seul poll() pour tous les fd (sockets d'ecoute,
+clients, pipes des CGI), en lecture et en ecriture. aucun recv/send/read/write
+sur un socket ou un pipe sans que poll() l'ait signale pret*/
 void    SetUpSocket::monitor_connections()
 {
-    fd_set keep, read;
-    int     return_select; 
-    int     fd_received;
-    char    buffer[4096];
-    std::vector<HTTP>   list_files;
+    std::vector<struct pollfd> pfds;
+    std::vector<t_poll_owner> owners;
+    std::set<int> touched;
+    int timeout;
+    int ready;
 
-    FD_ZERO(&keep);
-    set_connections_fd_set(keep);
-
-    while (1)
+    while (!g_stop)
     {
-        read = keep;
-        return_select = select(FD_SETSIZE, &read, NULL, NULL, NULL);
-        if (return_select)
-        { 
-            if (return_select < 0)
-                throw(SocketSetUpFail("select has failed"));
-            else
-            {
-                for (int i = 0; i < FD_SETSIZE; i++)
-                {
-                    if (!FD_ISSET(i, &read))
-                        continue;
-                    if (fds_listen.count(i))
-                    {
-                        fd_received = accept(i, NULL, NULL);
-                        FD_SET(fd_received, &keep);
-
-                        HTTP    new_connection(fd_received, this->config->get_server_config());
-                        list_files.push_back(new_connection);
-                    }
-                    else
-                    {
-                        std::memset(buffer, 0, 4096);
-                        int total_read;
-                        total_read = recv(i, buffer, sizeof(buffer) - 1, 0);
-                        // client deconnecte ou erreur : on ferme seulement ce client
-                        if (total_read <= 0)
-                        {
-                            delete_vector(list_files, &HTTP::get_client_fd, i);
-                            FD_CLR(i, &keep);
-                            close(i);
-                        }
-                        else
-                        {
-                            HTTP    &structure = find_value_vector(list_files, &HTTP::get_client_fd, i);
-
-                            // reponse envoyee (Connection: close) : on ferme le socket
-                            if (structure.append_content(buffer, total_read))
-                            {
-                                delete_vector(list_files, &HTTP::get_client_fd, i);
-                                FD_CLR(i, &keep);
-                                close(i);
-                            }
-                        }
-                    }
-                }
-            }
+        timeout = build_poll_list(pfds, owners);
+        if (pfds.empty())
+            return ;
+        ready = poll(&pfds[0], pfds.size(), timeout);
+        touched.clear();
+        // -1 : signal recu (Ctrl-C -> g_stop) ; sinon on refait un tour
+        for (size_t i = 0; ready > 0 && i < pfds.size(); i++)
+        {
+            if (pfds[i].revents != 0)
+                dispatch(pfds[i], owners[i], touched);
         }
+        check_timeouts(touched);
     }
+}
+
+/*reconstruit le tableau de poll() a chaque tour : ce que l'on surveille
+depend de l'etat de chaque connexion. renvoie le timeout de poll() en ms*/
+int     SetUpSocket::build_poll_list(std::vector<struct pollfd> &pfds, \
+    std::vector<t_poll_owner> &owners)
+{
+    int timeout = 1000;
+
+    pfds.clear();
+    owners.clear();
+    for (std::map<int, int>::const_iterator it = fds_listen.begin(); \
+        it != fds_listen.end(); ++it)
+        add_poll_entry(pfds, owners, it->first, POLLIN, FD_LISTEN, -1, NULL, 0);
+    for (std::map<int, HTTP *>::const_iterator it = clients.begin(); \
+        it != clients.end(); ++it)
+    {
+        HTTP *conn = it->second;
+
+        add_poll_entry(pfds, owners, it->first, conn->client_events(), \
+            FD_CLIENT, it->first, conn, 0);
+        if (conn->cgi_fd_in() != -1)
+            add_poll_entry(pfds, owners, conn->cgi_fd_in(), POLLOUT, \
+                FD_CGI_PIPE, it->first, conn, conn->get_cgi_generation());
+        if (conn->cgi_fd_out() != -1)
+            add_poll_entry(pfds, owners, conn->cgi_fd_out(), POLLIN, \
+                FD_CGI_PIPE, it->first, conn, conn->get_cgi_generation());
+        // script fini mais pas encore recupere par waitpid : on revient vite
+        if (conn->needs_fast_tick())
+            timeout = 10;
+    }
+    return (timeout);
+}
+
+void    SetUpSocket::add_poll_entry(std::vector<struct pollfd> &pfds, \
+    std::vector<t_poll_owner> &owners, int fd, short events, \
+    e_fd_type type, int client_fd, HTTP *conn, unsigned int generation)
+{
+    struct pollfd entry;
+    t_poll_owner owner;
+
+    entry.fd = fd;
+    entry.events = events;
+    entry.revents = 0;
+    owner.type = type;
+    owner.client_fd = client_fd;
+    owner.conn = conn;
+    owner.generation = generation;
+    pfds.push_back(entry);
+    owners.push_back(owner);
+}
+
+/*un fd ferme ou ouvert pendant ce tour peut reprendre le numero d'une case
+plus loin dans le tableau : "touched" et la generation du CGI permettent
+d'ignorer ces evenements perimes*/
+void    SetUpSocket::dispatch(struct pollfd const &pfd, t_poll_owner const &owner, \
+    std::set<int> &touched)
+{
+    if (owner.type == FD_LISTEN)
+    {
+        accept_client(pfd.fd, touched);
+        return ;
+    }
+    std::map<int, HTTP *>::iterator it = clients.find(owner.client_fd);
+    if (touched.count(owner.client_fd) || it == clients.end() || it->second != owner.conn)
+        return ;
+    HTTP *conn = owner.conn;
+    if (owner.type == FD_CGI_PIPE)
+    {
+        if (conn->get_cgi_generation() == owner.generation
+            && (pfd.fd == conn->cgi_fd_in() || pfd.fd == conn->cgi_fd_out()))
+            conn->on_cgi_event(pfd.fd, pfd.revents);
+        return ;
+    }
+    bool keep = true;
+    if ((pfd.revents & POLLIN) && (pfd.events & POLLIN))
+        keep = conn->on_readable();
+    else if ((pfd.revents & POLLOUT) && (pfd.events & POLLOUT))
+        keep = conn->on_writable();
+    else if (pfd.revents & (POLLHUP | POLLERR | POLLNVAL))
+        keep = false;
+    if (!keep)
+        close_client(pfd.fd, touched);
+}
+
+void    SetUpSocket::accept_client(int listen_fd, std::set<int> &touched)
+{
+    int fd;
+
+    fd = accept(listen_fd, NULL, NULL);
+    if (fd == -1)
+        return ;
+    set_non_blocking(fd);
+    try
+    {
+        clients[fd] = new HTTP(fd, listen_servers[listen_fd]);
+    }
+    catch (std::exception const &)
+    {
+        clients.erase(fd);
+        close(fd);
+        return ;
+    }
+    touched.insert(fd);
+}
+
+/*detruire HTTP ferme aussi les pipes et tue le CGI eventuel*/
+void    SetUpSocket::close_client(int fd, std::set<int> &touched)
+{
+    std::map<int, HTTP *>::iterator it = clients.find(fd);
+
+    if (it == clients.end())
+        return ;
+    delete it->second;
+    clients.erase(it);
+    close(fd);
+    touched.insert(fd);
+}
+
+/*timeouts des clients et des CGI, et fin des scripts (waitpid non bloquant)*/
+void    SetUpSocket::check_timeouts(std::set<int> &touched)
+{
+    std::vector<int> to_close;
+    time_t now = time(NULL);
+
+    for (std::map<int, HTTP *>::iterator it = clients.begin(); it != clients.end(); ++it)
+    {
+        if (!it->second->on_tick(now))
+            to_close.push_back(it->first);
+    }
+    for (size_t i = 0; i < to_close.size(); i++)
+        close_client(to_close[i], touched);
 }

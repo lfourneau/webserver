@@ -1,119 +1,200 @@
 #include "HTTP.hpp"
 #include "CGI.hpp"
-#include "Post.hpp"
+#include "Get.hpp"
 #include "ErrorCodes.hpp"
-#include "Delete.hpp"
 #include "ServerParser.hpp"
 #include "Chunked.hpp"
 #include "Body.hpp"
 #include "FindServer.hpp"
 #include "Encapsulate.hpp"
+#include <poll.h>
+#include <sys/socket.h>
 
-//Les constructeurs
-
-HTTP::HTTP(int fd, std::vector<t_server> const &servers) : fd(fd), servers(servers), header_http(NULL)
+HTTP::HTTP(int fd, std::vector<t_server> const &servers) : fd(fd), servers(&servers), \
+http_request(), header_http(NULL), response(), response_sent(0), state(READING_REQUEST), \
+last_activity(time(NULL)), server(NULL), loc(NULL), cgi(NULL), cgi_purpose(CGI_REQUEST), \
+cgi_generation(0), error_code(0), error_allow(), autoindex_dir(), autoindex_uri()
 {
-
 }
 
-HTTP::HTTP(HTTP const &other) : fd(other.fd), servers(other.servers), \
-http_request(other.http_request), header_http(NULL), response(other.response)
-{
-    if (other.header_http != NULL)
-        header_http = new t_header(*other.header_http);
-}
-
-HTTP &HTTP::operator=(HTTP const &other)
-{
-    if (this != &other)
-    {
-        fd = other.fd;
-        servers = other.servers;
-        http_request = other.http_request;
-        response = other.response;
-        delete header_http;
-        header_http = NULL;
-        if (other.header_http != NULL)
-            header_http = new t_header(*other.header_http);
-    }
-    return (*this);
-}
-
+/*detruire la connexion detruit le CGI : il est tue s'il tourne encore*/
 HTTP::~HTTP()
 {
     delete header_http;
+    delete cgi;
 }
 
-bool HTTP::build_request(t_server const *&found, t_location const *&found_loc)
-/*il faut checker que toute la requete a ete recue;
-il faut identifier le serveur auquel la requete fait reference
-il faut trouver le bloc location qui importe
-les erreurs sont lancees (ErrorCodes) et gerees dans append_content*/
-{
-    if (header_http == NULL && http_request.find("\r\n\r\n") == std::string::npos)
-        return (false);
-    if (header_http == NULL && http_request.find("\r\n\r\n") != std::string::npos)
-        header_http = ServerParser::parse_input(http_request, http_request.find("\r\n\r\n"));
-    if (!body_complete())
-        return (false);
-    t_server const &server = FindServer::find_server(header_http, servers);
-    found = &server;
-    if (server.max_body_size > 0 && \
-        header_http->body_request.size() > static_cast<size_t>(server.max_body_size))
-        throw ErrorCodes(413);
-    t_location const &location = FindServer::find_location(header_http, server);
-    found_loc = &location;
+/*---------------- ce que poll() doit surveiller ----------------*/
 
-    ExecuteRequest req(server, location, *header_http);
-    req.execute();
-    if (location.cgi_pass)
-        response = Encapsulate::cgi_response(req.get_code(), req.get_output(), false);
-    else
-        response = Encapsulate::response(req.get_code(), req.get_output(), \
-            req.get_filename(), false);
+short HTTP::client_events() const
+{
+    if (state == SENDING_RESPONSE)
+        return (POLLOUT);
+    // pendant le CGI on surveille aussi POLLIN : c'est ainsi qu'arrive la
+    // deconnexion du client (recv renvoie 0), et on peut alors tuer le script
+    return (POLLIN);
+}
+
+int HTTP::cgi_fd_in() const
+{
+    if (state != RUNNING_CGI || cgi == NULL)
+        return (-1);
+    return (cgi->get_fd_in());
+}
+
+int HTTP::cgi_fd_out() const
+{
+    if (state != RUNNING_CGI || cgi == NULL)
+        return (-1);
+    return (cgi->get_fd_out());
+}
+
+unsigned int HTTP::get_cgi_generation() const
+{
+    return (cgi_generation);
+}
+
+bool HTTP::needs_fast_tick() const
+{
+    return (state == RUNNING_CGI && cgi != NULL && cgi->waiting_for_exit());
+}
+
+/*---------------- evenements ----------------*/
+
+/*POLLIN sur le socket : un seul recv. false = fermer la connexion*/
+bool HTTP::on_readable()
+{
+    char buffer[4096];
+    ssize_t total;
+
+    total = recv(fd, buffer, sizeof(buffer), 0);
+    // 0 : le client a ferme ; -1 : erreur (on ne regarde pas errno)
+    if (total <= 0)
+        return (false);
+    // requete deja complete (CGI en cours) : donnees en trop ignorees
+    if (state != READING_REQUEST)
+        return (true);
+    last_activity = time(NULL);
+    http_request.append(buffer, total);
+    handle_request();
     return (true);
 }
 
-void HTTP::build_error(ErrorCodes const &err, t_server const *server, \
-    t_location const *loc)
+/*POLLOUT sur le socket : un seul send. false = fermer la connexion
+(reponse entierement envoyee, Connection: close, ou erreur)*/
+bool HTTP::on_writable()
 {
-    int code = err.getcode();
-    std::string allow;
-
-    // redirection (ex: dossier demande sans '/' final)
-    if (code >= 300 && code < 400 && !err.get_uri().empty())
-    {
-        response = Encapsulate::redirect(code, err.get_uri());
-        return ;
-    }
-    // erreur avant d'avoir trouve le serveur : on prend le serveur par defaut
-    if (server == NULL && !servers.empty())
-        server = &servers[0];
-    if (loc != NULL)
-    {
-        if (loc->get)
-            allow += "GET";
-        if (loc->post)
-            allow += allow.empty() ? "POST" : ", POST";
-        if (loc->del)
-            allow += allow.empty() ? "DELETE" : ", DELETE";
-    }
-    response = Encapsulate::error(err, server, false, allow);
-}
-
-void HTTP::send_response()
-{
-    size_t total = 0;
     ssize_t sent;
 
-    while (total < response.size())
+    sent = send(fd, response.c_str() + response_sent, \
+        response.size() - response_sent, MSG_NOSIGNAL);
+    if (sent <= 0)
+        return (false);
+    last_activity = time(NULL);
+    response_sent += sent;
+    return (response_sent < response.size());
+}
+
+/*poll() a signale quelque chose sur un pipe du CGI*/
+void HTTP::on_cgi_event(int pipe_fd, short revents)
+{
+    if (cgi == NULL || state != RUNNING_CGI)
+        return ;
+    if (pipe_fd == cgi->get_fd_in() && (revents & (POLLOUT | POLLERR | POLLHUP)))
+        cgi->on_writable();
+    else if (pipe_fd == cgi->get_fd_out() && (revents & (POLLIN | POLLERR | POLLHUP)))
+        cgi->on_readable();
+    check_cgi(time(NULL));
+}
+
+/*appele a chaque tour de boucle : timeouts. false = fermer la connexion*/
+bool HTTP::on_tick(time_t now)
+{
+    if (state == RUNNING_CGI)
     {
-        sent = send(fd, response.c_str() + total, response.size() - total, MSG_NOSIGNAL);
-        if (sent <= 0)
-            break ;
-        total += sent;
+        check_cgi(now);
+        return (true);
     }
-    response.clear();
+    if (now - last_activity < CLIENT_TIMEOUT)
+        return (true);
+    // requete commencee mais jamais terminee : 408, puis fermeture
+    if (state == READING_REQUEST && !http_request.empty())
+    {
+        start_error(ErrorCodes(408));
+        return (true);
+    }
+    return (false);
+}
+
+/*---------------- traitement de la requete ----------------*/
+
+void HTTP::handle_request()
+{
+    try
+    {
+        build_request();
+    }
+    catch (ErrorCodes const &err)
+    {
+        start_error(err);
+    }
+    catch (std::exception const &)
+    {
+        start_error(ErrorCodes(500));
+    }
+}
+
+/*il faut checker que toute la requete a ete recue;
+il faut identifier le serveur auquel la requete fait reference
+il faut trouver le bloc location qui importe
+les erreurs sont lancees (ErrorCodes) et gerees dans handle_request.
+renvoie false tant que la requete est incomplete*/
+bool HTTP::build_request()
+{
+    if (header_http == NULL && http_request.find("\r\n\r\n") == std::string::npos)
+    {
+        // headers sans fin : on ne garde pas tout en memoire
+        if (http_request.size() > MAX_HEADER_SIZE)
+            throw ErrorCodes(431);
+        return (false);
+    }
+    if (header_http == NULL)
+    {
+        header_http = ServerParser::parse_input(http_request, http_request.find("\r\n\r\n"));
+        server = &FindServer::find_server(header_http, *servers);
+        // Content-Length trop grand : 413 tout de suite, sans attendre le body
+        if (server->max_body_size > 0 && \
+            Body::get_content_length(header_http) > static_cast<size_t>(server->max_body_size))
+            throw ErrorCodes(413);
+    }
+    if (!body_complete())
+        return (false);
+    // body chunked : sa taille n'est connue qu'une fois de-chunke
+    if (server->max_body_size > 0 && \
+        header_http->body_request.size() > static_cast<size_t>(server->max_body_size))
+        throw ErrorCodes(413);
+    loc = &FindServer::find_location(header_http, *server);
+
+    ExecuteRequest req(*server, *loc, *header_http);
+    req.execute();
+    t_execute const &exec = req.get_exec();
+    if (!exec.cgi)
+    {
+        set_response(Encapsulate::response(exec.code, exec.output, exec.filename, false));
+        return (true);
+    }
+    if (exec.autoindex)
+    {
+        autoindex_dir = exec.filename;
+        autoindex_uri = header_http->URI;
+        if (!start_cgi(exec.cgi_prog, exec.cgi_script, exec.cgi_env, "", CGI_AUTOINDEX))
+            autoindex_fallback();
+        return (true);
+    }
+    if (!start_cgi(exec.cgi_prog, exec.cgi_script, exec.cgi_env, \
+        header_http->body_request, CGI_REQUEST))
+        throw ErrorCodes(500);
+    return (true);
 }
 
 bool HTTP::body_complete()
@@ -139,28 +220,167 @@ bool HTTP::body_complete()
     return (true);
 }
 
-/*renvoie true quand la reponse a ete envoyee : la connexion peut etre fermee*/
-bool HTTP::append_content(const char *cont, unsigned int size)
-{
-    t_server const *server = NULL;
-    t_location const *loc = NULL;
+/*---------------- erreurs ----------------*/
 
-    http_request.append(cont, size);
+/*page d'erreur, par ordre de priorite :
+1) fichier error_page du .conf : page statique lue directement,
+   ou script .py/.php lance en CGI
+2) sinon redirection interne vers cgi-bin/error_page.py
+3) si le script ne peut pas etre lance ou plante : page codee en dur*/
+void HTTP::start_error(ErrorCodes const &err)
+{
+    int code = err.getcode();
+    std::string script;
+
+    // redirection (ex: dossier demande sans '/' final)
+    if (code >= 300 && code < 400 && !err.get_uri().empty())
+    {
+        set_response(Encapsulate::redirect(code, err.get_uri()));
+        return ;
+    }
+    // erreur avant d'avoir trouve le serveur : on prend le serveur par defaut
+    if (server == NULL && !servers->empty())
+        server = &(*servers)[0];
+    error_code = code;
+    error_allow = allowed_methods();
+    if (server != NULL)
+    {
+        std::map<int, std::string>::const_iterator it = server->error_files.find(code);
+
+        if (it != server->error_files.end())
+        {
+            std::string body;
+
+            if (CGI::interpreter_for(it->second).empty())
+            {
+                if (!Encapsulate::read_error_file(it->second, body))
+                    body.clear();
+                set_response(Encapsulate::error(code, body, false, error_allow));
+                return ;
+            }
+            script = it->second;
+        }
+        else
+            script = server->server_repo + "/" + ERROR_SCRIPT;
+    }
+    if (!script.empty())
+    {
+        struct stat info;
+        std::vector<std::string> env;
+
+        env.push_back("STATUS_CODE=" + HelperFunctions::ft_itoa(code));
+        env.push_back("REDIRECT_STATUS=" + HelperFunctions::ft_itoa(code));
+        env.push_back("REQUEST_METHOD=GET");
+        env.push_back("GATEWAY_INTERFACE=CGI/1.1");
+        env.push_back("SCRIPT_FILENAME=" + script);
+        if (header_http != NULL)
+            env.push_back("REQUEST_URI=" + header_http->URI);
+        if (stat(script.c_str(), &info) == 0 && S_ISREG(info.st_mode)
+            && start_cgi(CGI::interpreter_for(script), script, env, "", CGI_ERROR_PAGE))
+            return ;
+    }
+    set_response(Encapsulate::error(code, "", false, error_allow));
+}
+
+std::string HTTP::allowed_methods() const
+{
+    std::string allow;
+
+    if (loc == NULL)
+        return (allow);
+    if (loc->get)
+        allow += "GET";
+    if (loc->post)
+        allow += allow.empty() ? "POST" : ", POST";
+    if (loc->del)
+        allow += allow.empty() ? "DELETE" : ", DELETE";
+    return (allow);
+}
+
+/*---------------- CGI ----------------*/
+
+bool HTTP::start_cgi(std::string const &prog, std::string const &script, \
+    std::vector<std::string> const &env, std::string const &body, e_cgi_purpose purpose)
+{
+    delete cgi;
+    cgi = new CGI();
+    if (!cgi->start(prog, script, env, body, purpose == CGI_REQUEST))
+    {
+        delete cgi;
+        cgi = NULL;
+        return (false);
+    }
+    cgi_purpose = purpose;
+    // les pipes peuvent reprendre les numeros d'anciens fd : la generation
+    // permet a la boucle d'ignorer un evenement qui concernait l'ancien script
+    cgi_generation++;
+    state = RUNNING_CGI;
+    return (true);
+}
+
+void HTTP::check_cgi(time_t now)
+{
+    CGI::e_result result;
+
+    if (cgi == NULL || state != RUNNING_CGI)
+        return ;
+    result = cgi->update(now);
+    if (result != CGI::RUNNING)
+        finish_cgi(result);
+}
+
+/*le script est termine (ou tue) : on construit la reponse*/
+void HTTP::finish_cgi(int result)
+{
+    std::string output = cgi->get_output();
+
+    if (cgi_purpose == CGI_REQUEST)
+    {
+        if (result == CGI::SUCCESS)
+            set_response(Encapsulate::cgi_response(200, output, false));
+        else if (result == CGI::TIMEOUT)
+            start_error(ErrorCodes(504));
+        else
+            start_error(ErrorCodes(502));
+    }
+    else if (cgi_purpose == CGI_AUTOINDEX)
+    {
+        if (result == CGI::SUCCESS)
+            set_response(Encapsulate::cgi_response(200, output, false));
+        else
+            autoindex_fallback();
+    }
+    // page d'erreur : jamais de nouvelle erreur ici, sinon on pourrait boucler
+    else
+    {
+        std::string body;
+
+        if (result == CGI::SUCCESS)
+            body = Encapsulate::error_body_from_cgi(output);
+        set_response(Encapsulate::error(error_code, body, false, error_allow));
+    }
+}
+
+/*le script d'autoindex a plante : listing code en dur (opendir/readdir)*/
+void HTTP::autoindex_fallback()
+{
     try
     {
-        if (!build_request(server, loc))
-            return (false);
+        set_response(Encapsulate::response(200, \
+            Get::autoindex_page(autoindex_dir, autoindex_uri), "index.html", false));
     }
     catch (ErrorCodes const &err)
     {
-        build_error(err, server, loc);
+        start_error(err);
     }
-    catch (std::exception const &)
-    {
-        build_error(ErrorCodes(500), server, loc);
-    }
-    send_response();
-    return (true);
+}
+
+void HTTP::set_response(std::string const &content)
+{
+    response = content;
+    response_sent = 0;
+    state = SENDING_RESPONSE;
+    last_activity = time(NULL);
 }
 
 int HTTP::get_client_fd() const

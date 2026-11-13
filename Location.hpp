@@ -17,10 +17,15 @@ typedef struct s_location
     bool    autoindex;
     bool    cgi_pass;
     std::string program_exec_cgi;
+    // return 301 /ailleurs;  (0 = pas de redirection)
+    int     redirect_code;
+    std::string redirect_url;
+    // upload_store /chemin;  (vide = dossier de l'URL)
+    std::string upload_dir;
 
     s_location() : get(false), post(false), del(false), file_directory(),\
     prefix(), default_file(), autoindex(false), cgi_pass(false),\
-    program_exec_cgi() {};
+    program_exec_cgi(), redirect_code(0), redirect_url(), upload_dir() {};
 } t_location;
 
 class   Location
@@ -58,6 +63,8 @@ class   Location
     void    parse_autoindex(IT &it, IT end);
     void    parse_cgi_exec(IT &it, IT end);
     void    index_file(IT &it, IT end);
+    void    parse_return(IT &it, IT end);
+    void    parse_upload_store(IT &it, IT end);
 };
 
 #endif

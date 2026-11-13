@@ -41,6 +41,13 @@ class ServerConfig
             return ("Missing bracket");
         }
     };
+    class NoServer : public std::exception
+    {
+        virtual const char *what() const throw()
+        {
+            return ("Configuration file has no server block");
+        }
+    };
     class WhiteChar : public std::exception
     {
         virtual const char *what() const throw()

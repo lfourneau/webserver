@@ -2,20 +2,27 @@
 # define EXECUTEREQUEST_HPP
 
 # include <string>
+# include <vector>
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <fcntl.h>
 # include "Server.hpp"
 # include "Location.hpp"
 # include "HTTP.hpp"
-# define AUTOINDEX "autoindex.py"
 
 typedef struct s_execute
 {
     std::string output;
     std::string filename;
     int code;
-    s_execute() : output(), filename(), code(200) {};
+    bool autoindex;
+    // script CGI a lancer (la boucle poll() s'en charge, pas ExecuteRequest)
+    bool cgi;
+    std::string cgi_prog;
+    std::string cgi_script;
+    std::vector<std::string> cgi_env;
+    s_execute() : output(), filename(), code(200), autoindex(false), cgi(false), \
+    cgi_prog(), cgi_script(), cgi_env() {};
 } t_execute;
 
 class ExecuteRequest
@@ -29,6 +36,8 @@ class ExecuteRequest
     int get_code() const;
     std::string const &get_output() const;
     std::string const &get_filename() const;
+    bool is_autoindex() const;
+    t_execute const &get_exec() const;
 
     private:
     ExecuteRequest();
@@ -40,6 +49,7 @@ class ExecuteRequest
     void build_path();
     void complete_repo();
     void complete_file();
+    void prepare_autoindex();
 };
 
 #endif

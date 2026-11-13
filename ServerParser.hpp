@@ -11,6 +11,7 @@ class ServerParser
     static t_header *parse_input(std::string const &other, ssize_t const size);
     static void get_first_line(std::stringstream &other, t_header *save);
     static void check_cgi(t_header *head);
+    static void decode_uri(t_header *head);
     static void parse_headers(std::stringstream &val, t_header* header);
     static void get_host_port(t_header *header);
     private:

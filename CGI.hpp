@@ -6,84 +6,64 @@
 # include "Location.hpp"
 # include "ErrorCodes.hpp"
 # include <string>
-# include <algorithm>
+# include <vector>
+# include <ctime>
+# include <sys/types.h>
 
+// pages generees par CGI en interne (erreurs, autoindex)
+# define PYTHON_INTERPRETER "/usr/bin/python3"
+# define PHP_INTERPRETER "/usr/bin/php-cgi"
+# define ERROR_SCRIPT "cgi-bin/error_page.py"
+# define AUTOINDEX_SCRIPT "cgi-bin/autoindex.py"
+// au-dela, le script est tue et le client recoit 504 Gateway Timeout
+# define CGI_TIMEOUT 5
 
-typedef struct s_cgi
-{
-    char *prog;
-    char **argv;
-    std::vector<std::string> argv_str;
-    char **envp;
-    std::vector<std::string> content;
-    s_cgi() : prog(NULL), argv(NULL), envp(NULL) {}
-
-} t_cgi;
-
+/*un script CGI en cours d'execution.
+le serveur ne l'attend jamais : fork() lance le script, puis la boucle poll()
+surveille les deux pipes. on ecrit le body dans fd_in quand poll() dit POLLOUT,
+on lit la sortie dans fd_out quand poll() dit POLLIN, et on recupere le code
+de sortie avec waitpid(WNOHANG) une fois la sortie terminee (EOF).*/
 class CGI
 {
     public:
+    enum e_result { RUNNING, SUCCESS, FAILURE, TIMEOUT };
+
     CGI();
+    ~CGI();
+
+    bool start(std::string const &prog, std::string const &script, \
+        std::vector<std::string> const &env, std::string const &body, \
+        bool in_script_dir = true);
+    void on_writable();
+    void on_readable();
+    e_result update(time_t now);
+
+    int get_fd_in() const;
+    int get_fd_out() const;
+    bool waiting_for_exit() const;
+    std::string const &get_output() const;
+
+    static std::vector<std::string> request_env(t_execute const *exec, \
+        t_header const *head);
+    static std::string interpreter_for(std::string const &script);
+
+    private:
     CGI(CGI const &other);
     CGI &operator=(CGI const &other);
-    ~CGI();
-    static void run(t_execute *exec, t_header const *head, t_location const *loc);
-    void extract_output(t_execute *, t_header const *, t_location const *);
-    private:
-    t_cgi cgi;
-    void make_headers(t_execute *, t_header const *, t_location const *);
-    void transform_client_headers(t_header const *head);
-    void add_additionnal_headers(t_execute *exec, t_header const *head, \
-    t_location const *loc);
-    void make_char_stars(t_execute const *exec, t_location const *loc);
-    void create_argv(t_execute const *, t_location const *);
-    void transform_to_c_str(std::vector<std::string> const &vec, char **&dest);
-    void fork_program(t_execute *exec, \
-        t_header const *head, t_location const *loc);
-    void free_char_lists(char **&cont);
 
+    pid_t pid;
+    int fd_in;
+    int fd_out;
+    std::string body;
+    size_t body_sent;
+    std::string output;
+    time_t start_time;
+    e_result result;
+
+    void close_fd(int &fd);
+    void kill_child();
+    static char **to_c_array(std::vector<std::string> const &vec);
+    static void free_c_array(char **array);
 };
-
-/*
-# include <vector>
-# include <utility>
-# include <string>
-# include "HTTP.hpp"
-# include <unistd.h>
-# include <fcntl.h>
-# include <sys/wait.h>
-# include <string.h>
-# include <cstring>
-
-
-class   CGI : public HTTP
-{
-    public:
-        CGI(HTTP const &other);
-        CGI(CGI const &other);
-        CGI &operator=(CGI const &other);
-        virtual ~CGI() throw();
-        std::string get_output();
-    private:
-    
-        std::string    exec_program;
-        std::vector<char *> argv;
-        std::vector<char *> envp;
-        std::string output_cgi;
-
-        void    fork_program();
-        void    parse_input();
-        void    basic_envp(std::vector<std::string> &vec);
-        void    script_name(std::vector<std::string> &vec);
-        void    sup_post(std::vector<std::string> &vec);
-        void    transform_to_c_str(std::vector<std::string> const &vec);
-        void    create_argv();
-        void    free_char_lists();
-        std::string const find_type() const;
-};
-
-# include "find_structure.tpp"
-# include "concatenate.tpp"
-*/
 
 #endif

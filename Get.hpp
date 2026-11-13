@@ -9,6 +9,7 @@ class Get
     public:
     static void extract_output(t_execute *, t_header const *, t_location const *);
     static void read_file(t_execute *exec);
+    static std::string autoindex_page(std::string const &dir, std::string const &uri);
     private:
     Get();
     Get(Get const &other);

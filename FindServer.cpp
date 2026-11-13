@@ -3,32 +3,24 @@
 #include "Server.hpp"
 #include "HTTP.hpp"
 
+/*servers = les blocs qui ecoutent sur l'interface:port qui a accepte la
+connexion. le premier est celui par defaut ; un bloc dont un server_name
+correspond exactement au Host est prioritaire (virtual hosts)*/
 t_server const &FindServer::find_server(t_header const *val, std::vector<t_server> const &servers)
 {
-    t_server const *best = NULL; 
-    if (val->host_port == 0)
-        throw(ErrorCodes(400));
+    if (servers.empty())
+        throw(ErrorCodes(500));
     std::vector<t_server>::const_iterator it = servers.begin();
     for (; it != servers.end(); ++it)
     {
-        if (it->open_ports.count(val->host_port))
+        std::vector<std::string>::const_iterator it_nam = it->server_names.begin();
+        for (; it_nam != it->server_names.end(); ++it_nam)
         {
-            std::vector<std::string>::const_iterator it_nam = it->server_names.begin();
-            for (; it_nam != it->server_names.end(); ++it_nam)
-            {
-                if (val->host_name != "" && val->host_name == *it_nam)
-                {
-                    best = &(*it);
-                    return (*best);
-                }
-                if (val->host_name == "" || val->host_name == "localhost" || best == NULL)
-                    best = &(*it);
-            }
+            if (val->host_name != "" && val->host_name == *it_nam)
+                return (*it);
         }
     }
-    if (best == NULL)
-        throw(ErrorCodes(400));
-    return (*best);
+    return (servers[0]);
 }
 
 t_location const &FindServer::find_location(t_header const *val, t_server const &servers)
@@ -59,8 +51,9 @@ t_location const &FindServer::find_location(t_header const *val, t_server const 
     }
     if (missing_slash && size_match < val->URI.size() + 1)
         throw (ErrorCodes(val->method == "GET" ? 301 : 308, val->URI + "/"));
+    // aucune location ne correspond a l'URI : la ressource n'existe pas
     if (best == NULL)
-        throw (ErrorCodes(400));
+        throw (ErrorCodes(404));
     return (*best);
 }
 

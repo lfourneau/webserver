@@ -1,6 +1,8 @@
 #include "Post.hpp"
 #include "ErrorCodes.hpp"
 #include <map>
+#include <sstream>
+#include <ctime>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -16,8 +18,17 @@ void    Post::post_file(t_execute *exec, t_header const *head, t_location const 
 
     if (loc->cgi_pass == true)
         return ;
+    if (!is_multipart(head))
+    {
+        save_raw_body(exec, head, loc);
+        return ;
+    }
     delim = "--" + get_boundary(head);
-    dir = get_upload_dir(exec);
+    // upload_store dans la location : dossier impose (verifie au demarrage)
+    if (!loc->upload_dir.empty())
+        dir = loc->upload_dir;
+    else
+        dir = get_upload_dir(exec);
     if (body.compare(0, delim.size(), delim) != 0)
         throw ErrorCodes(400);
     pos = delim.size();
@@ -38,6 +49,53 @@ void    Post::post_file(t_execute *exec, t_header const *head, t_location const 
     }
     if (saved == 0)
         throw ErrorCodes(400);
+    exec->code = 201;
+}
+
+bool    Post::is_multipart(t_header const *head)
+{
+    std::map<std::string, std::string>::const_iterator it = \
+    head->headers.find("content-type");
+
+    return (it != head->headers.end() && it->second.compare(0, 19, "multipart/form-data") == 0);
+}
+
+/*POST d'un body brut (ex: curl --data "..."), enregistre tel quel.
+URI qui vise un fichier (/upload/note.txt) : ce nom est garde ;
+URI qui vise un dossier (/upload/) : nom genere post_<date>_<n>.txt.
+avec upload_store, le fichier va dans ce dossier*/
+void    Post::save_raw_body(t_execute *exec, t_header const *head, t_location const *loc)
+{
+    static unsigned int counter = 0;
+    struct stat info;
+    std::string dir;
+    std::string name;
+    std::string const &target = exec->filename;
+
+    if (stat(target.c_str(), &info) == 0 && S_ISDIR(info.st_mode))
+    {
+        std::ostringstream generated;
+
+        generated << "post_" << time(NULL) << "_" << counter++ << ".txt";
+        name = generated.str();
+        dir = target;
+    }
+    else
+    {
+        size_t slash = target.rfind('/');
+
+        name = target.substr(slash + 1);
+        dir = target.substr(0, slash);
+        if (name.empty())
+            throw ErrorCodes(400);
+    }
+    if (!loc->upload_dir.empty())
+        dir = loc->upload_dir;
+    if (stat(dir.c_str(), &info) == -1 || !S_ISDIR(info.st_mode))
+        throw ErrorCodes(404);
+    while (dir.size() > 1 && dir[dir.size() - 1] == '/')
+        dir.erase(dir.size() - 1);
+    save_file(dir + "/" + name, head->body_request);
     exec->code = 201;
 }
 

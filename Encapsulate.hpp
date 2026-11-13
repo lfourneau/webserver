@@ -15,11 +15,14 @@ class Encapsulate
         std::string const &filename, bool keep_alive = true);
     static std::string cgi_response(int code, std::string const &cgi_output, \
         bool keep_alive = true);
-    static std::string error(ErrorCodes const &err, t_server const *serv, \
+    static std::string error(int code, std::string const &body, \
         bool keep_alive = false, std::string const &allow = "");
     static std::string redirect(int code, std::string const &location);
 
     static std::string content_type(std::string const &filename);
+    static std::string error_body_from_cgi(std::string const &cgi_output);
+    static bool read_error_file(std::string const &path, std::string &out);
+    static std::string default_error_page(int code);
 
     private:
     Encapsulate();
@@ -31,8 +34,8 @@ class Encapsulate
 
     static std::string status_line(int code);
     static std::string assemble(int code, t_headers headers, std::string const &body);
-    static std::string default_error_page(int code);
-    static bool read_error_file(std::string const &path, std::string &out);
+    static void split_cgi_output(std::string const &cgi_output, t_headers &headers, \
+        std::string &body, int &code);
     static std::string current_date();
 };
 

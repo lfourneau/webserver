@@ -8,7 +8,8 @@ ServerConfig::ServerConfig(std::string &path_config)
 //  parse_content(content_config);
     tokenize(content_config);
     recup_information();
-    std::cout << "valid file for now" << std::endl;
+    if (servers.empty())
+        throw (NoServer());
 }
 
 ServerConfig::ServerConfig(ServerConfig const &other)
@@ -64,7 +65,13 @@ void ServerConfig::tokenize(std::string const &flux)
         }
         else if (current_char == '#')
         {
-            while (current_char != '\n')
+            // commentaire jusqu'a la fin de la ligne (avant : boucle infinie)
+            if (current_token.empty() == false)
+            {
+                tokens.push_back(current_token);
+                reinitialize_string(current_token);
+            }
+            while (i < flux.size() && flux[i] != '\n')
                 i++;
         }
         else if (current_char == '{' || current_char == '}' || current_char == ';') 

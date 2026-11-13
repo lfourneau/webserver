@@ -16,6 +16,8 @@ class Post
     static bool parse_part(std::string const &part, std::string const &dir);
     static std::string get_filename(std::string const &part_headers);
     static void save_file(std::string const &path, std::string const &content);
+    static bool is_multipart(t_header const *head);
+    static void save_raw_body(t_execute *exec, t_header const *head, t_location const *loc);
     Post();
     Post(Post const &other);
     Post &operator=(Post const &other);

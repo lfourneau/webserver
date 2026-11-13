@@ -37,6 +37,9 @@ void    ExecuteRequest::execute()
     t_handler const handlers[] = {&Get::extract_output, &Post::post_file, &Delete::delete_file};
     int method;
 
+    // return 301 /ailleurs; : redirection avant tout le reste (comme nginx)
+    if (loc->redirect_code != 0)
+        throw ErrorCodes(loc->redirect_code, loc->redirect_url);
     method = find_method();
     build_path();
     if (loc->cgi_pass)
@@ -45,7 +48,10 @@ void    ExecuteRequest::execute()
 
         if (stat(exec_info.filename.c_str(), &info) == -1 || !S_ISREG(info.st_mode))
             throw ErrorCodes(404);
-        CGI::run(&exec_info, head, loc);
+        exec_info.cgi = true;
+        exec_info.cgi_prog = loc->program_exec_cgi;
+        exec_info.cgi_script = exec_info.filename;
+        exec_info.cgi_env = CGI::request_env(&exec_info, head);
     }
     else
     {
@@ -56,7 +62,10 @@ void    ExecuteRequest::execute()
             else
                 complete_file();
         }
-        handlers[method](&exec_info, head, loc);
+        if (exec_info.autoindex)
+            prepare_autoindex();
+        else
+            handlers[method](&exec_info, head, loc);
     }
 }
 
@@ -73,6 +82,16 @@ std::string const &ExecuteRequest::get_output() const
 std::string const &ExecuteRequest::get_filename() const
 {
     return (exec_info.filename);
+}
+
+bool ExecuteRequest::is_autoindex() const
+{
+    return (exec_info.autoindex);
+}
+
+t_execute const &ExecuteRequest::get_exec() const
+{
+    return (exec_info);
 }
 
 int ExecuteRequest::find_method() const
@@ -92,11 +111,24 @@ int ExecuteRequest::find_method() const
     throw ErrorCodes(501);
 }
 
+/*chemin du fichier sur le disque.
+- location avec root : le prefixe de la location est remplace par le root
+  (sujet : /kapouet rooted /tmp/www -> /kapouet/pouic/toto -> /tmp/www/pouic/toto)
+- sinon : root du serveur + URI complete
+- location CGI (.py, .php) : le prefixe est une extension, on garde l'URI*/
 void    ExecuteRequest::build_path()
 {
     if (head->URI.empty())
         throw ErrorCodes(403);
-    if (loc->file_directory != "")
+    if (loc->file_directory != "" && !loc->cgi_pass)
+    {
+        std::string rest = head->URI.substr(loc->prefix.size());
+
+        if (rest.empty() || rest[0] != '/')
+            rest.insert(0, "/");
+        exec_info.filename = loc->file_directory + rest;
+    }
+    else if (loc->file_directory != "")
         exec_info.filename = loc->file_directory + head->URI;
     else if (serv->server_repo != "")
         exec_info.filename = serv->server_repo + head->URI;
@@ -110,14 +142,33 @@ void    ExecuteRequest::complete_repo()
 
     if (stat(exec_info.filename.c_str(), &info) == -1 || !S_ISDIR(info.st_mode))
         throw ErrorCodes(404);
-    if (loc->default_file != "")
-        exec_info.filename += loc->default_file;
-    else if (loc->autoindex)
-        exec_info.filename += AUTOINDEX;
-    else if (this->head->method == "POST")
+    if (this->head->method == "POST")
         return;
+    // fichier index present : on le sert
+    if (loc->default_file != ""
+        && stat((exec_info.filename + loc->default_file).c_str(), &info) == 0
+        && S_ISREG(info.st_mode))
+        exec_info.filename += loc->default_file;
+    // sinon listing du dossier par le script d'autoindex
+    else if (loc->autoindex)
+        exec_info.autoindex = true;
     else
         throw ErrorCodes(403);
+}
+
+/*redirection interne vers cgi-bin/autoindex.py. le script n'est pas lance ici :
+HTTP le demarre et la boucle poll() lit sa sortie. s'il plante, HTTP genere
+le listing en C++ (Get::autoindex_page)*/
+void    ExecuteRequest::prepare_autoindex()
+{
+    exec_info.cgi = true;
+    exec_info.cgi_prog = PYTHON_INTERPRETER;
+    exec_info.cgi_script = serv->server_repo + "/" + AUTOINDEX_SCRIPT;
+    exec_info.cgi_env.push_back("DIRECTORY=" + exec_info.filename);
+    exec_info.cgi_env.push_back("REQUEST_URI=" + head->URI);
+    exec_info.cgi_env.push_back("REQUEST_METHOD=GET");
+    exec_info.cgi_env.push_back("GATEWAY_INTERFACE=CGI/1.1");
+    exec_info.cgi_env.push_back("SCRIPT_FILENAME=" + exec_info.cgi_script);
 }
 
 void    ExecuteRequest::complete_file()
