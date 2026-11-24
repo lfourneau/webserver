@@ -21,6 +21,7 @@
 extern volatile sig_atomic_t g_stop;
 # include "HTTP.hpp"
 # include "ServerConfig.hpp"
+# define POLL_TIMEOUT 1000
 
 class SetUpSocket
 {

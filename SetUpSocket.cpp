@@ -55,9 +55,11 @@ void    SetUpSocket::for_each_block()
     }
 }
 
-/*un socket d'ecoute par paire interface:port. plusieurs blocs server peuvent
-declarer la meme paire : ils partagent le socket, et le header Host choisit
-le bloc (virtual hosts, voir check_virtual_hosts)*/
+//dans cette fonction on complete les informations fournies dans le fichier de configuration
+//si il n'y a pas de nom de domaine on rajoute 0.0.0.0 ensuite on verifie que les interfaces
+//que nous demandons pointent bien a des paires ip:port different pour s'assurer que
+//quand on cherchera a bind il n'y aura pas d'erreur
+//on stocke finalement les files descriptors associes aux paries. ip port
 void    SetUpSocket::get_addr(t_server const &serv)
 {
     std::vector<std::pair<std::string, int> >::const_iterator it;
@@ -73,9 +75,6 @@ void    SetUpSocket::get_addr(t_server const &serv)
         to_string << it->second;
         if (it->first.empty())
         {
-            // toutes les interfaces : socket IPv6 "dual-stack" qui accepte aussi
-            // l'IPv4. sans lui, "localhost" resolu en ::1 (siege, navigateurs)
-            // serait refuse
             name = "0.0.0.0:" + to_string.str();
             if (bound_addrs.count(name))
                 fd = bound_addrs[name];
@@ -92,8 +91,8 @@ void    SetUpSocket::get_addr(t_server const &serv)
                 throw(SocketSetUpFail("listen " + it->first + ":" + to_string.str() \
                     + ": unknown interface"));
             structures_addr_info.push_back(new_addrinfo);
-            // nom a partir de l'adresse resolue : "localhost" et "127.0.0.1" sont la meme
             struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(new_addrinfo->ai_addr);
+            //le nom de l'adresse ip est contenu dans addr->sin_addr il faut le reprendre de la
             unsigned char *bytes = reinterpret_cast<unsigned char *>(&addr->sin_addr);
             std::ostringstream ip_str;
             ip_str << static_cast<int>(bytes[0]) << "." << static_cast<int>(bytes[1]) << "."
@@ -103,13 +102,11 @@ void    SetUpSocket::get_addr(t_server const &serv)
                 fd = bound_addrs[name];
             else
             {
-                // la premiere adresse IPv4 renvoyee suffit
                 fd = socket_creation(new_addrinfo->ai_family, new_addrinfo->ai_addr, \
                     new_addrinfo->ai_addrlen, it->second, name);
                 bound_addrs[name] = fd;
             }
         }
-        // "listen 8080;" ecrit deux fois dans le meme bloc : une seule entree
         if (used_by_this_server.count(fd))
             continue;
         used_by_this_server.insert(fd);
@@ -168,9 +165,10 @@ int     SetUpSocket::wildcard_socket(int port, std::string const &name)
         sizeof(addr4), port, name));
 }
 
-/*plusieurs blocs server sur le meme interface:port (virtual hosts) :
-ils doivent se distinguer par server_name. deux blocs sans server_name,
-ou avec un nom commun, seraient ambigus : erreur de configuration*/
+//notre serveur est en mesure de pouvoir associer plusieurs noms de domaine
+//a une seule combinaison adresse ip:port. verifions qu'il n'y ait pas d'incoherences
+//par exemple plusieurs blocs servers qui pointernt vers la meme combinaison server/ip
+//ou avec des hostnames identiques
 void    SetUpSocket::check_virtual_hosts()
 {
     std::map<std::string, int>::const_iterator it;
@@ -218,9 +216,9 @@ void    SetUpSocket::set_non_blocking(int fd)
     fcntl(fd, F_SETFL, O_NONBLOCK);
 }
 
-/*la boucle principale : un seul poll() pour tous les fd (sockets d'ecoute,
-clients, pipes des CGI), en lecture et en ecriture. aucun recv/send/read/write
-sur un socket ou un pipe sans que poll() l'ait signale pret*/
+//on lance le poll qui permet de monitorer les connections en arrivee
+//dispatch va determiner ce qu'il faut faire a savoir accepter une connection
+//ecouter la demande ecrire dans le file descriptor et envoyer une reponse
 void    SetUpSocket::monitor_connections()
 {
     std::vector<struct pollfd> pfds;
@@ -236,7 +234,6 @@ void    SetUpSocket::monitor_connections()
             return ;
         ready = poll(&pfds[0], pfds.size(), timeout);
         touched.clear();
-        // -1 : signal recu (Ctrl-C -> g_stop) ; sinon on refait un tour
         for (size_t i = 0; ready > 0 && i < pfds.size(); i++)
         {
             if (pfds[i].revents != 0)
@@ -251,7 +248,7 @@ depend de l'etat de chaque connexion. renvoie le timeout de poll() en ms*/
 int     SetUpSocket::build_poll_list(std::vector<struct pollfd> &pfds, \
     std::vector<t_poll_owner> &owners)
 {
-    int timeout = 1000;
+    int timeout = POLL_TIMEOUT;
 
     pfds.clear();
     owners.clear();
@@ -296,9 +293,10 @@ void    SetUpSocket::add_poll_entry(std::vector<struct pollfd> &pfds, \
     owners.push_back(owner);
 }
 
-/*un fd ferme ou ouvert pendant ce tour peut reprendre le numero d'une case
-plus loin dans le tableau : "touched" et la generation du CGI permettent
-d'ignorer ces evenements perimes*/
+//dans cette fonction on determine exactement ce qu'on doit faire selon le status du 
+//du file descriptor on check a la fin le type de requete que l'on peut faire sur 
+//file descriptor, lecture ecriture ou erreur, on compare avec revents qui sont les
+//infos renvoyees par le noyeau pour signifier des erreures
 void    SetUpSocket::dispatch(struct pollfd const &pfd, t_poll_owner const &owner, \
     std::set<int> &touched)
 {
@@ -350,7 +348,7 @@ void    SetUpSocket::accept_client(int listen_fd, std::set<int> &touched)
     touched.insert(fd);
 }
 
-/*detruire HTTP ferme aussi les pipes et tue le CGI eventuel*/
+//on tue et on libere la memoire du client
 void    SetUpSocket::close_client(int fd, std::set<int> &touched)
 {
     std::map<int, HTTP *>::iterator it = clients.find(fd);
@@ -363,7 +361,8 @@ void    SetUpSocket::close_client(int fd, std::set<int> &touched)
     touched.insert(fd);
 }
 
-/*timeouts des clients et des CGI, et fin des scripts (waitpid non bloquant)*/
+//on met en place un systeme qui permet d'eviter qu'un programme
+//reste bloque sur un waitpid
 void    SetUpSocket::check_timeouts(std::set<int> &touched)
 {
     std::vector<int> to_close;
