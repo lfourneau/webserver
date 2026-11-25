@@ -1,0 +1,126 @@
+#include "ServerConfig.hpp"
+
+ServerConfig::ServerConfig(std::string &path_config)
+{
+    std::string content_config;
+
+    open_read_config(content_config, path_config);
+//  parse_content(content_config);
+    tokenize(content_config);
+    recup_information();
+    if (servers.empty())
+        throw (NoServer());
+}
+
+ServerConfig::ServerConfig(ServerConfig const &other)
+{
+    (void)other;
+}
+
+ServerConfig &ServerConfig::operator=(ServerConfig const &other)
+{
+    (void)other;
+    return (*this);
+}
+
+ServerConfig::~ServerConfig()
+{
+}
+
+void ServerConfig::open_read_config(std::string &content, std::string &config)
+{
+    int fd;
+    char buffer[4096];
+    ssize_t more;
+
+    fd = open(config.c_str(), O_RDONLY);
+    if (fd == -1)
+    {
+        throw (FileOpenFail());
+    }
+    while (true)
+    {
+        more = read(fd, buffer, 4096);
+        if (more < 0)
+            throw(ReadFail());
+        if (more == 0)
+            break;
+        content.append(buffer, more);
+    }
+    close(fd);
+}
+
+void ServerConfig::tokenize(std::string const &flux)
+{
+    std::string current_token;
+
+    for (long unsigned int i = 0; i < flux.size(); i++)
+    {
+        unsigned char current_char = static_cast<unsigned char>(flux[i]);
+
+        if (std::isspace(current_char) && current_token.empty() == false)
+        {
+            tokens.push_back(current_token);
+            reinitialize_string(current_token);
+        }
+        else if (current_char == '#')
+        {
+            // commentaire jusqu'a la fin de la ligne (avant : boucle infinie)
+            if (current_token.empty() == false)
+            {
+                tokens.push_back(current_token);
+                reinitialize_string(current_token);
+            }
+            while (i < flux.size() && flux[i] != '\n')
+                i++;
+        }
+        else if (current_char == '{' || current_char == '}' || current_char == ';') 
+        {
+            if (current_token.empty() == false)
+            {
+                tokens.push_back(current_token);
+                reinitialize_string(current_token);
+            }
+            tokens.push_back(std::string(1, current_char));
+        }
+        else if (std::isspace(current_char) == false) 
+        {
+            current_token += current_char;
+        }
+    }
+    if (current_token.empty() == false)
+        tokens.push_back(current_token);
+}
+
+void ServerConfig::reinitialize_string(std::string &content)
+{
+    content = "";
+    content.clear();
+}
+
+void ServerConfig::recup_information()
+{
+    std::vector<std::string>::iterator it = tokens.begin();
+    std::vector<std::string>::iterator end = tokens.end();
+
+    while (it != end)
+    {
+        if (*it == "server")
+        {
+            it++;
+
+            Server  new_server_block(it, end);
+
+            servers.push_back(new_server_block.get_server());
+        }
+        else
+        {
+            throw (WhiteChar());
+        }
+    }
+}
+
+std::vector<t_server> const &ServerConfig::get_server_config() const
+{
+    return (servers);
+}

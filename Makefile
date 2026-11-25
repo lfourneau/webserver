@@ -2,8 +2,10 @@
 
 CC=c++
 FLAGS=-Wall -Wextra -Werror -std=c++98 -g
-CPP=$(wildcard *.cpp)
-CO=$(CPP:.cpp=.o)
+SRC_DIR=src
+OBJ_DIR=obj
+CPP=$(wildcard $(SRC_DIR)/*.cpp)
+CO=$(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(CPP))
 # -MMD -MP : le compilateur ecrit un .d par fichier avec les headers inclus,
 # un .o est donc recompile quand un header qu'il utilise change
 DEPS=$(CO:.o=.d)
@@ -14,7 +16,7 @@ all: $(PROG)
 $(PROG): $(CO)
 	$(CC) $(FLAGS) $(CO) -o $@
 
-%.o:%.cpp
+$(OBJ_DIR)/%.o:$(SRC_DIR)/%.cpp
 	$(CC) $(FLAGS) -MMD -MP $< -c -o $@
 
 clean:
