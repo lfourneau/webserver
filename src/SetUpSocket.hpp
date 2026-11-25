@@ -52,18 +52,9 @@ class SetUpSocket
         struct addrinfo parameter;
         struct addrinfo *return_getaddr_info;
         ServerConfig *config;
-
-        void    for_each_block();
-        // "127.0.0.1:8080" -> fd du socket d'ecoute
+        std::map<int, HTTP *> clients;
         std::map<std::string, int> bound_addrs;
-        // fd du socket d'ecoute -> blocs server qui l'utilisent
         std::map<int, std::vector<t_server> > listen_servers;
-        int     socket_creation(int family, struct sockaddr *addr, socklen_t addr_len, \
-            int port, std::string const &name);
-        int     wildcard_socket(int port, std::string const &name);
-        void    check_virtual_hosts();
-        void    get_addr(t_server const &other);
-        // a quoi correspond chaque case du tableau donne a poll()
         enum e_fd_type { FD_LISTEN, FD_CLIENT, FD_CGI_PIPE };
         typedef struct s_poll_owner
         {
@@ -73,8 +64,12 @@ class SetUpSocket
             unsigned int generation;
         } t_poll_owner;
 
-        std::map<int, HTTP *> clients;
-
+        void    for_each_block();
+        int     socket_creation(int family, struct sockaddr *addr, socklen_t addr_len, \
+            int port, std::string const &name);
+        int     wildcard_socket(int port, std::string const &name);
+        void    check_virtual_hosts();
+        void    get_addr(t_server const &other);
         void    monitor_connections();
         int     build_poll_list(std::vector<struct pollfd> &pfds, \
             std::vector<t_poll_owner> &owners);
@@ -88,7 +83,6 @@ class SetUpSocket
         void    check_timeouts(std::set<int> &touched);
         void    set_non_blocking(int fd);
         void    set_sock_non_crash(int &file_descriptor);
-
 };
 
 # include "find_structure.tpp"

@@ -3,9 +3,6 @@
 #include "Server.hpp"
 #include "HTTP.hpp"
 
-/*servers = les blocs qui ecoutent sur l'interface:port qui a accepte la
-connexion. le premier est celui par defaut ; un bloc dont un server_name
-correspond exactement au Host est prioritaire (virtual hosts)*/
 t_server const &FindServer::find_server(t_header const *val, std::vector<t_server> const &servers)
 {
     if (servers.empty())
@@ -44,14 +41,12 @@ t_location const &FindServer::find_location(t_header const *val, t_server const 
             found = find_repo(val, &(*it), size_match);
             if (found != NULL)
                 best = found;
-            // "/upload" demande alors que le bloc est "/upload/"
             else if (it->prefix.size() > 1 && it->prefix == val->URI + "/")
                 missing_slash = true;
         }
     }
     if (missing_slash && size_match < val->URI.size() + 1)
         throw (ErrorCodes(val->method == "GET" ? 301 : 308, val->URI + "/"));
-    // aucune location ne correspond a l'URI : la ressource n'existe pas
     if (best == NULL)
         throw (ErrorCodes(404));
     return (*best);
@@ -70,7 +65,6 @@ t_location const *FindServer::find_repo(t_header const *val, t_location const *l
 {
     if (val->URI.size() < loc->prefix.size() || loc->prefix.size() < len)
         return (NULL);
-    // on garde le prefixe le plus long
     if (!val->URI.compare(0, loc->prefix.size(), loc->prefix))
     {
         len = loc->prefix.size();

@@ -6,7 +6,6 @@ t_header *ServerParser::parse_input(std::string const &other, ssize_t const val)
     content_to_parse.write(other.c_str(), val);
 
     t_header *parsed = new t_header();
-    // une requete invalide lance une exception : on libere avant de la relancer
     try
     {
         get_first_line(content_to_parse, parsed);
@@ -23,9 +22,6 @@ t_header *ServerParser::parse_input(std::string const &other, ssize_t const val)
     return (parsed);
 }
 
-/*"METHODE /chemin HTTP/1.1" : exactement trois elements.
-methode en majuscules (une methode inconnue mais bien formee donne 501
-plus tard), URI qui commence par '/', version HTTP/1.0 ou HTTP/1.1 (505 sinon)*/
 void ServerParser::get_first_line(std::stringstream &stream, t_header *save)
 {
     std::string line;
@@ -119,7 +115,7 @@ void    ServerParser::parse_headers(std::stringstream &val, t_header *header)
     }
 }
 
-//host is mandatory for http1.0
+//host is mandatory for http1.1
 void    ServerParser::get_host_port(t_header *header)
 {
     std::string combo = header->headers["host"];

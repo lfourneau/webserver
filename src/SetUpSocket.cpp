@@ -138,8 +138,8 @@ int     SetUpSocket::socket_creation(int family, struct sockaddr *addr, socklen_
     return (new_listen_fd);
 }
 
-/*"listen 8080;" : [::]:8080 en dual-stack (IPv6 + IPv4).
-si l'IPv6 est desactive sur la machine, repli sur 0.0.0.0:8080*/
+//cette fonction permet de gerer les blocs server dans lesquels un port ne
+//serait pas precise. Le port par default est 8080
 int     SetUpSocket::wildcard_socket(int port, std::string const &name)
 {
     struct sockaddr_in6 addr6;
@@ -199,18 +199,17 @@ void    SetUpSocket::check_virtual_hosts()
 }
 
 void    SetUpSocket::set_sock_non_crash(int &file_desc)
+//on ajoute des flags pour que en case de redemarrage type control c le bind puisse
+//se faire (sinon typiquement il faudrait attendre 1min)
 {
     int option = true;
 
-    // le fd est deja dans fds_listen : le destructeur le fermera
     if (setsockopt(file_desc, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0)
         throw(SocketSetUpFail("setsockopt has failed"));
 }
 
-/*O_NONBLOCK : recv/send/accept rendent la main immediatement au lieu
-d'attendre. poll() garantit deja qu'il y a quelque chose a faire, mais sans
-ce flag un send() trop gros ou un client lent pourrait quand meme bloquer
-tout le serveur*/
+//poll s'active uniquement quand un des fd est diponible
+//ici on verifie que read accept ou recv ne fasse pas freeze la maichine
 void    SetUpSocket::set_non_blocking(int fd)
 {
     fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -243,8 +242,9 @@ void    SetUpSocket::monitor_connections()
     }
 }
 
-/*reconstruit le tableau de poll() a chaque tour : ce que l'on surveille
-depend de l'etat de chaque connexion. renvoie le timeout de poll() en ms*/
+//dans poll on ne peut que transmettre une quantite d'informations limitee 
+//sur les file descriptors surveilles. ici on cree des structures paralleles
+//pour pouvoir savoir comment traiter le fd
 int     SetUpSocket::build_poll_list(std::vector<struct pollfd> &pfds, \
     std::vector<t_poll_owner> &owners)
 {
@@ -268,7 +268,6 @@ int     SetUpSocket::build_poll_list(std::vector<struct pollfd> &pfds, \
         if (conn->cgi_fd_out() != -1)
             add_poll_entry(pfds, owners, conn->cgi_fd_out(), POLLIN, \
                 FD_CGI_PIPE, it->first, conn, conn->get_cgi_generation());
-        // script fini mais pas encore recupere par waitpid : on revient vite
         if (conn->needs_fast_tick())
             timeout = 10;
     }

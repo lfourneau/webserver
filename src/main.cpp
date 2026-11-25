@@ -6,8 +6,7 @@
 
 # define DEFAULT_CONFIG "configuration/default.conf"
 
-// passe a 1 sur Ctrl-C (SIGINT) ou SIGTERM : la boucle poll() s'arrete
-// et toute la memoire est liberee avant la fin du programme
+//la variable gloclae permet de faire fonctionner les signaux
 volatile sig_atomic_t g_stop = 0;
 
 static void stop_server(int)
@@ -36,11 +35,10 @@ int main(int ac, char **av)
         return 1; 
     }
 
-    // sans argument : fichier de configuration par defaut
+    //le programme peut etre lance sans argument la config de base est utilisee
     std::string value(ac == 2 ? av[1] : DEFAULT_CONFIG);
 
-    // ecrire dans un pipe ou un socket ferme envoie SIGPIPE, qui tuerait
-    // le serveur : on l'ignore, write/send renvoient simplement -1
+    //on configure les signaux 
     signal(SIGPIPE, SIG_IGN);
     signal(SIGINT, stop_server);
     signal(SIGTERM, stop_server);

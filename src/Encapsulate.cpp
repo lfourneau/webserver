@@ -30,7 +30,6 @@ std::string Encapsulate::cgi_response(int code, std::string const &cgi_output, \
     return (assemble(code, headers, body));
 }
 
-/*separe les headers ecrits par le script (s'il y en a) du corps de la page*/
 void Encapsulate::split_cgi_output(std::string const &cgi_output, t_headers &headers, \
     std::string &body, int &code)
 {
@@ -71,8 +70,6 @@ void Encapsulate::split_cgi_output(std::string const &cgi_output, t_headers &hea
     body = cgi_output.substr(end + sep);
 }
 
-/*reponse d'erreur avec le corps deja prepare par HTTP (fichier error_page,
-script CGI ou rien). corps vide : page codee en dur*/
 std::string Encapsulate::error(int code, std::string const &body, bool keep_alive, \
     std::string const &allow)
 {
@@ -85,8 +82,6 @@ std::string Encapsulate::error(int code, std::string const &body, bool keep_aliv
     return (assemble(code, headers, body.empty() ? default_error_page(code) : body));
 }
 
-/*corps d'une page d'erreur generee par CGI : on retire les headers du script.
-le code de la reponse reste celui de l'erreur, meme si le script envoie un Status*/
 std::string Encapsulate::error_body_from_cgi(std::string const &cgi_output)
 {
     t_headers ignored;

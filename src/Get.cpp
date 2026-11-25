@@ -59,8 +59,6 @@ static std::string html_escape(std::string const &text)
     return (out);
 }
 
-/*listing code en dur, utilise seulement si cgi-bin/autoindex.py plante.
-les noms sont tries (std::set) : dossiers d'abord, puis fichiers*/
 std::string Get::autoindex_page(std::string const &dir, std::string const &uri)
 {
     DIR *directory = opendir(dir.c_str());

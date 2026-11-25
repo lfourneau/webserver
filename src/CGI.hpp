@@ -10,19 +10,12 @@
 # include <ctime>
 # include <sys/types.h>
 
-// pages generees par CGI en interne (erreurs, autoindex)
 # define PYTHON_INTERPRETER "/usr/bin/python3"
 # define PHP_INTERPRETER "/usr/bin/php-cgi"
 # define ERROR_SCRIPT "cgi-bin/error_page.py"
 # define AUTOINDEX_SCRIPT "cgi-bin/autoindex.py"
-// au-dela, le script est tue et le client recoit 504 Gateway Timeout
 # define CGI_TIMEOUT 5
 
-/*un script CGI en cours d'execution.
-le serveur ne l'attend jamais : fork() lance le script, puis la boucle poll()
-surveille les deux pipes. on ecrit le body dans fd_in quand poll() dit POLLOUT,
-on lit la sortie dans fd_out quand poll() dit POLLIN, et on recupere le code
-de sortie avec waitpid(WNOHANG) une fois la sortie terminee (EOF).*/
 class CGI
 {
     public:

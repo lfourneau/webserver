@@ -5,7 +5,6 @@ ServerConfig::ServerConfig(std::string &path_config)
     std::string content_config;
 
     open_read_config(content_config, path_config);
-//  parse_content(content_config);
     tokenize(content_config);
     recup_information();
     if (servers.empty())
@@ -50,6 +49,7 @@ void ServerConfig::open_read_config(std::string &content, std::string &config)
     close(fd);
 }
 
+//on lit les la ligne charactere par charactere
 void ServerConfig::tokenize(std::string const &flux)
 {
     std::string current_token;
@@ -65,7 +65,6 @@ void ServerConfig::tokenize(std::string const &flux)
         }
         else if (current_char == '#')
         {
-            // commentaire jusqu'a la fin de la ligne (avant : boucle infinie)
             if (current_token.empty() == false)
             {
                 tokens.push_back(current_token);

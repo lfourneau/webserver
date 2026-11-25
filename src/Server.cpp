@@ -147,8 +147,7 @@ void    Server::client_size(IT &it, IT end)
     it = it + 2;
 }
 
-//le code foncitonne si on utilise un listen sur un port sans preciser de host
-//(dans ce cas la "" = localhost = 127.0.0.1)
+//on verifie que :PORT est impossible en acceptant PORT
 void    Server::listen(IT &it, IT end)
 {
     std::string host;

@@ -37,7 +37,6 @@ void    ExecuteRequest::execute()
     t_handler const handlers[] = {&Get::extract_output, &Post::post_file, &Delete::delete_file};
     int method;
 
-    // return 301 /ailleurs; : redirection avant tout le reste (comme nginx)
     if (loc->redirect_code != 0)
         throw ErrorCodes(loc->redirect_code, loc->redirect_url);
     method = find_method();
@@ -111,11 +110,6 @@ int ExecuteRequest::find_method() const
     throw ErrorCodes(501);
 }
 
-/*chemin du fichier sur le disque.
-- location avec root : le prefixe de la location est remplace par le root
-  (sujet : /kapouet rooted /tmp/www -> /kapouet/pouic/toto -> /tmp/www/pouic/toto)
-- sinon : root du serveur + URI complete
-- location CGI (.py, .php) : le prefixe est une extension, on garde l'URI*/
 void    ExecuteRequest::build_path()
 {
     if (head->URI.empty())
@@ -144,21 +138,16 @@ void    ExecuteRequest::complete_repo()
         throw ErrorCodes(404);
     if (this->head->method == "POST")
         return;
-    // fichier index present : on le sert
     if (loc->default_file != ""
         && stat((exec_info.filename + loc->default_file).c_str(), &info) == 0
         && S_ISREG(info.st_mode))
         exec_info.filename += loc->default_file;
-    // sinon listing du dossier par le script d'autoindex
     else if (loc->autoindex)
         exec_info.autoindex = true;
     else
         throw ErrorCodes(403);
 }
 
-/*redirection interne vers cgi-bin/autoindex.py. le script n'est pas lance ici :
-HTTP le demarre et la boucle poll() lit sa sortie. s'il plante, HTTP genere
-le listing en C++ (Get::autoindex_page)*/
 void    ExecuteRequest::prepare_autoindex()
 {
     exec_info.cgi = true;

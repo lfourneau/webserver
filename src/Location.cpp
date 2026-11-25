@@ -109,7 +109,6 @@ void Location::parse_return(IT &it, IT end)
     it = it + 2;
 }
 
-/*upload_store /dossier;  dossier ou POST enregistre les fichiers recus*/
 void Location::parse_upload_store(IT &it, IT end)
 {
     if ((it + 1) == end || *(it + 1) != ";")

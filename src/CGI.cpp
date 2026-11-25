@@ -12,8 +12,6 @@ start_time(0), result(RUNNING)
 {
 }
 
-/*le client s'est deconnecte ou la reponse est partie : on ne laisse
-ni fd ouvert, ni processus zombie*/
 CGI::~CGI()
 {
     close_fd(fd_in);
@@ -21,14 +19,6 @@ CGI::~CGI()
     kill_child();
 }
 
-/*lance le script. renvoie false si pipe() ou fork() echoue.
-seules les extremites gardees par le serveur passent en O_NONBLOCK :
-le script, lui, lit et ecrit normalement.
-in_script_dir : le script tourne dans son dossier (exige par le sujet pour
-les CGI du client). le chemin du script devient alors son simple nom, sinon
-un chemin relatif (root ./) ne serait plus valable apres le chdir.
-les scripts internes (erreurs, autoindex) restent dans le dossier du serveur
-pour que les chemins relatifs qu'on leur passe restent justes*/
 bool CGI::start(std::string const &prog, std::string const &script, \
     std::vector<std::string> const &request_env_vars, std::string const &request_body, \
     bool in_script_dir)
@@ -73,15 +63,12 @@ bool CGI::start(std::string const &prog, std::string const &script, \
         close(to_cgi[1]);
         close(from_cgi[0]);
         close(from_cgi[1]);
-        // le script ne doit pas heriter des reglages de signaux du serveur
         signal(SIGPIPE, SIG_DFL);
         signal(SIGINT, SIG_DFL);
         signal(SIGTERM, SIG_DFL);
-        // on se place dans le dossier du script (chemins relatifs)
         if (!dir.empty() && chdir(dir.c_str()) == -1)
             _exit(1);
         execve(prog.c_str(), argv, envp);
-        // execve a echoue : le fils ne doit surtout pas continuer le serveur
         _exit(127);
     }
     free_c_array(argv);
@@ -102,13 +89,11 @@ bool CGI::start(std::string const &prog, std::string const &script, \
     body_sent = 0;
     start_time = time(NULL);
     result = RUNNING;
-    // pas de body : on ferme tout de suite, le script lit EOF sur stdin
     if (body.empty())
         close_fd(fd_in);
     return (true);
 }
 
-/*poll() a signale POLLOUT sur fd_in : un seul write, puis on rend la main*/
 void CGI::on_writable()
 {
     ssize_t written;
@@ -116,7 +101,6 @@ void CGI::on_writable()
     if (fd_in == -1)
         return ;
     written = write(fd_in, body.c_str() + body_sent, body.size() - body_sent);
-    // -1 : le script a ferme son stdin (ou est mort), inutile d'insister
     if (written <= 0)
     {
         close_fd(fd_in);
@@ -127,8 +111,7 @@ void CGI::on_writable()
         close_fd(fd_in);
 }
 
-/*poll() a signale POLLIN ou POLLHUP sur fd_out : un seul read.
-0 = EOF, le script a fini d'ecrire (ou a ferme sa sortie)*/
+
 void CGI::on_readable()
 {
     char buffer[4096];
@@ -145,8 +128,6 @@ void CGI::on_readable()
     close_fd(fd_out);
 }
 
-/*appele a chaque tour de boucle : timeout et fin du processus.
-waitpid(WNOHANG) ne bloque jamais : il renvoie 0 si le fils tourne encore*/
 CGI::e_result CGI::update(time_t now)
 {
     int status;
@@ -162,7 +143,6 @@ CGI::e_result CGI::update(time_t now)
         result = TIMEOUT;
         return (result);
     }
-    // tant que la sortie n'est pas finie, on continue a lire
     if (fd_out != -1)
         return (RUNNING);
     ret = waitpid(pid, &status, WNOHANG);
@@ -187,8 +167,7 @@ int CGI::get_fd_out() const
     return (fd_out);
 }
 
-/*sortie terminee mais processus pas encore recupere : la boucle doit
-revenir vite (petit timeout de poll) pour appeler update()*/
+
 bool CGI::waiting_for_exit() const
 {
     return (result == RUNNING && fd_out == -1);
@@ -212,7 +191,6 @@ std::string CGI::interpreter_for(std::string const &script)
     return ("");
 }
 
-/*variables d'environnement d'une requete CGI du client (RFC 3875)*/
 std::vector<std::string> CGI::request_env(t_execute const *exec, t_header const *head)
 {
     std::vector<std::string> env;
@@ -228,7 +206,6 @@ std::vector<std::string> CGI::request_env(t_execute const *exec, t_header const 
             name.insert(0, "HTTP_");
         env.push_back(name + "=" + it->second);
     }
-    // pas de "\r\n" dans l'environnement : la valeur serait polluee
     env.push_back("REQUEST_METHOD=" + head->method);
     env.push_back("SCRIPT_NAME=" + head->URI);
     env.push_back("SCRIPT_FILENAME=" + exec->filename);
@@ -253,8 +230,6 @@ void CGI::close_fd(int &fd)
     fd = -1;
 }
 
-/*SIGKILL puis waitpid : le fils meurt immediatement, l'attente est
-instantanee et evite un processus zombie*/
 void CGI::kill_child()
 {
     int status;

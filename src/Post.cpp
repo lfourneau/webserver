@@ -24,7 +24,6 @@ void    Post::post_file(t_execute *exec, t_header const *head, t_location const 
         return ;
     }
     delim = "--" + get_boundary(head);
-    // upload_store dans la location : dossier impose (verifie au demarrage)
     if (!loc->upload_dir.empty())
         dir = loc->upload_dir;
     else
@@ -60,10 +59,8 @@ bool    Post::is_multipart(t_header const *head)
     return (it != head->headers.end() && it->second.compare(0, 19, "multipart/form-data") == 0);
 }
 
-/*POST d'un body brut (ex: curl --data "..."), enregistre tel quel.
-URI qui vise un fichier (/upload/note.txt) : ce nom est garde ;
-URI qui vise un dossier (/upload/) : nom genere post_<date>_<n>.txt.
-avec upload_store, le fichier va dans ce dossier*/
+//un post peut pointer vers un fichier un repo ou rien du tout avec curl, gestion de la creation 
+//du document ici
 void    Post::save_raw_body(t_execute *exec, t_header const *head, t_location const *loc)
 {
     static unsigned int counter = 0;
